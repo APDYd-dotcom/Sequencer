@@ -6,9 +6,10 @@ function initApp() {
   if (isInitialized) return;
   isInitialized = true;
   
-  // Initialize modules
+  // Initialize modules in order: audio, envelope, piano, sequencer
   initAudio();
   initEnvelope();
+  initPiano(); // <-- new
   initSequencer();
   
   // Set up UI event listeners
@@ -90,30 +91,27 @@ function setupUIListeners() {
 function loadDemoPattern() {
   // Clear first
   clearGrid();
-  // Set a simple pattern: some notes on the beat
-  const pattern = [
-    // Row 0 (C5): steps 0, 4, 8, 12
-    [0, 4, 8, 12],
-    // Row 1 (D5): steps 2, 6, 10, 14
-    [2, 6, 10, 14],
-    // Row 2 (E5): steps 1, 5, 9, 13
-    [1, 5, 9, 13],
-    // Row 3 (G5): steps 3, 7, 11, 15
-    [3, 7, 11, 15],
-    // Row 4 (A5): steps 0, 2, 4, 6, 8, 10, 12, 14 (every other)
-    [0, 2, 4, 6, 8, 10, 12, 14],
-    // Row 5 (C4): steps 1, 3, 5, 7, 9, 11, 13, 15
-    [1, 3, 5, 7, 9, 11, 13, 15],
-    // Row 6 (D4): steps 0, 4, 8, 12
-    [0, 4, 8, 12],
-    // Row 7 (E4): steps 2, 6, 10, 14
-    [2, 6, 10, 14]
-  ];
-  pattern.forEach((steps, row) => {
-    steps.forEach(col => {
-      state.grid[row][col] = true;
-    });
-  });
+  // Define a demo pattern using note names
+  const demoPattern = {
+    'C5': [0, 4, 8, 12],
+    'D5': [2, 6, 10, 14],
+    'E5': [1, 5, 9, 13],
+    'G5': [3, 7, 11, 15],
+    'A5': [0, 2, 4, 6, 8, 10, 12, 14],
+    'C4': [1, 3, 5, 7, 9, 11, 13, 15],
+    'D4': [0, 4, 8, 12],
+    'E4': [2, 6, 10, 14]
+  };
+  
+  // For each note in the demo pattern, set the corresponding row in the grid
+  for (const [noteName, steps] of Object.entries(demoPattern)) {
+    const rowIndex = state.noteNames.indexOf(noteName);
+    if (rowIndex >= 0) {
+      steps.forEach(col => {
+        state.grid[rowIndex][col] = true;
+      });
+    }
+  }
   drawGrid();
 }
 

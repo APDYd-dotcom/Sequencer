@@ -158,12 +158,41 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* Grid Card */
-#gridCanvas {
-    width: 100%;
-    height: 100%;
-    display: block;
-    background-color: var(--card-bg);
+.roll {
+    display: flex;
+    align-items: flex-start;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
+    overflow: hidden;
+}
+
+#pianoCanvas {
+    display: block;
+    flex: none;
+    width: 72px;
+    cursor: pointer;
+    touch-action: none;
+    background-color: var(--card-bg);
+}
+
+.grid-area {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+
+#gridCanvas {
+    display: block;
+    width: 100%;
+    /* height: 100%; */ /* removed, we set height via JS */
+    background-color: var(--card-bg);
+}
+
+.piano-hint {
+    font-size: 14px;
+    color: var(--secondary-text);
+    margin-top: 8px;
+    text-align: center;
 }
 
 /* Sound Card */
@@ -230,5 +259,33 @@ input[type="range"]::-moz-range-thumb {
     }
     .waveform-select, .volume-control, .adsr-group, #envelopeCanvas {
         width: 100%;
+    }
+    .roll {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #pianoCanvas {
+        width: 100%;
+        height: 72px; /* make it horizontal on very small screens? but we'll keep vertical and just make it full width? */
+        /* Actually, we want the piano to be on the left and the grid to the right, but on small screens we can stack? */
+        /* Let's keep the piano on top and the grid below for very small screens? */
+        /* However, the requirement is to keep it left of the grid. We'll change the flex direction to column and set the piano to a fixed height? */
+        /* But the piano width is 72px, we can't change that easily. Instead, we'll make the piano canvas have a fixed height and the grid take the rest? */
+        /* Let's do: on small screens, make the roll container column, piano canvas has height 72px (so it's a strip at the top) and grid takes the rest. */
+        /* But the piano keys are vertical, so we'd have to rotate? Not required. */
+        /* We'll keep the piano as a vertical strip on the left even on small screens by making the container have min-width:0 and the piano flex:0 0 72px. */
+        /* The grid area will take the remaining width. */
+        /* On very small screens, the grid area might become too narrow, but we'll let it scroll or shrink. */
+        /* We'll not change the flex direction for now, but we can make the piano canvas width 72px and the grid area flex:1. */
+        /* This will cause overflow on small screens, but we can make the container scroll horizontally. */
+        /* Alternatively, we can make the piano canvas have a width of 60px on small screens. */
+        /* Let's do: */
+        /* @media (max-width: 400px) { #pianoCanvas { width: 60px; } } */
+    }
+}
+
+@media (max-width: 400px) {
+    #pianoCanvas {
+        width: 60px;
     }
 }

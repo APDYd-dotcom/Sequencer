@@ -32,7 +32,13 @@
         </section>
         <section class="card grid-card">
             <h2>Sequencer Grid</h2>
-            <canvas id="gridCanvas"></canvas>
+            <div class="roll">
+                <canvas id="pianoCanvas"></canvas>
+                <div class="grid-area">
+                    <canvas id="gridCanvas"></canvas>
+                </div>
+            </div>
+            <div class="piano-hint">Click a piano key to hear the note. Click or drag on the grid to place notes in that key's row.</div>
         </section>
         <section class="card sound-card">
             <h2>Sound</h2>
@@ -74,6 +80,7 @@
     </main>
     <script src="js/audio.js"></script>
     <script src="js/envelope.js"></script>
+    <script src="js/piano.js"></script>
     <script src="js/sequencer.js"></script>
     <script src="js/main.js"></script>
 </body>
