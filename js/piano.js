@@ -58,7 +58,7 @@ function resizePiano() {
   pianoState.ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
   
   // Calculate key dimensions
-  pianoState.keyHeight = pianoState.logicalHeight / state.ROWS; // same as grid row height
+  pianoState.keyHeight = pianoState.logicalHeight / window.state.ROWS; // same as grid row height
   pianoState.keyWidth = pianoState.logicalWidth;
   
   drawPiano();
@@ -75,9 +75,9 @@ function drawPiano() {
   ctx.fillRect(0, 0, width, height);
   
   // First, draw all white keys (full width)
-  for (let row = 0; row < state.ROWS; row++) {
+  for (let row = 0; row < window.state.ROWS; row++) {
     const y = row * pianoState.keyHeight;
-    if (state.isBlackKey[row]) {
+    if (window.state.isBlackKey[row]) {
       // Black key row: draw white key underneath
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, y, pianoState.keyWidth, pianoState.keyHeight);
@@ -98,10 +98,10 @@ function drawPiano() {
   ctx.fillStyle = '#5f6368';
   ctx.font = '12px Roboto';
   ctx.textAlign = 'right';
-  for (let row = 0; row < state.ROWS; row++) {
-    if (!state.isBlackKey[row]) {
+  for (let row = 0; row < window.state.ROWS; row++) {
+    if (!window.state.isBlackKey[row]) {
       const y = row * pianoState.keyHeight;
-      const noteName = state.noteNames[row];
+      const noteName = window.state.noteNames[row];
       // Make C notes bold and dark
       if (noteName.startsWith('C')) {
         ctx.fillStyle = '#202124';
@@ -117,8 +117,8 @@ function drawPiano() {
   }
   
   // Draw black keys on top
-  for (let row = 0; row < state.ROWS; row++) {
-    if (state.isBlackKey[row]) {
+  for (let row = 0; row < window.state.ROWS; row++) {
+    if (window.state.isBlackKey[row]) {
       const y = row * pianoState.keyHeight;
       const blackKeyWidth = pianoState.keyWidth * pianoState.blackKeyWidthRatio;
       const blackKeyHeight = pianoState.keyHeight * pianoState.blackKeyHeightRatio;
@@ -138,14 +138,14 @@ function flashPianoKey(row, delayMs, durationMs) {
     if (!pianoState.canvas) return;
     
     const y = row * pianoState.keyHeight;
-    const highlightColor = state.isBlackKey[row] ? 'rgba(26, 115, 232, 0.8)' : 'rgba(138, 180, 248, 0.8)';
+    const highlightColor = window.state.isBlackKey[row] ? 'rgba(26, 115, 232, 0.8)' : 'rgba(138, 180, 248, 0.8)';
     
     // Save current state
     pianoState.ctx.save();
     
     // Draw the highlight rectangle over the key
     pianoState.ctx.fillStyle = highlightColor;
-    if (state.isBlackKey[row]) {
+    if (window.state.isBlackKey[row]) {
       const blackKeyWidth = pianoState.keyWidth * pianoState.blackKeyWidthRatio;
       const blackKeyHeight = pianoState.keyHeight * pianoState.blackKeyHeightRatio;
       const x = (pianoState.keyWidth - blackKeyWidth) / 2;
@@ -181,7 +181,7 @@ function redrawPianoKey(row) {
   ctx.clearRect(0, y, pianoState.keyWidth, pianoState.keyHeight);
   
   // Redraw the key as it should be (white or black key background)
-  if (state.isBlackKey[row]) {
+  if (window.state.isBlackKey[row]) {
     // Draw white key background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, y, pianoState.keyWidth, pianoState.keyHeight);
@@ -200,11 +200,11 @@ function redrawPianoKey(row) {
     // But we are only redrawing one key to remove highlight, and the note names are drawn on white keys only.
     // For a black key row, there is no note name on the key, so we are safe.
     // For a white key row, we need to redraw the note name.
-    if (!state.isBlackKey[row]) {
-      ctx.fillStyle = state.noteNames[row].startsWith('C') ? '#202124' : '#5f6368';
-      ctx.font = state.noteNames[row].startsWith('C') ? 'bold 12px Roboto' : '12px Roboto';
+    if (!window.state.isBlackKey[row]) {
+      ctx.fillStyle = window.state.noteNames[row].startsWith('C') ? '#202124' : '#5f6368';
+      ctx.font = window.state.noteNames[row].startsWith('C') ? 'bold 12px Roboto' : '12px Roboto';
       ctx.textAlign = 'right';
-      ctx.fillText(state.noteNames[row], pianoState.keyWidth - 4, y + pianoState.keyHeight * 0.7);
+      ctx.fillText(window.state.noteNames[row], pianoState.keyWidth - 4, y + pianoState.keyHeight * 0.7);
       ctx.font = '12px Roboto';
     }
   } else {
@@ -215,10 +215,10 @@ function redrawPianoKey(row) {
     ctx.lineWidth = 1;
     ctx.strokeRect(0, y, pianoState.keyWidth, pianoState.keyHeight);
     // Draw note name
-    ctx.fillStyle = state.noteNames[row].startsWith('C') ? '#202124' : '#5f6368';
-    ctx.font = state.noteNames[row].startsWith('C') ? 'bold 12px Roboto' : '12px Roboto';
+    ctx.fillStyle = window.state.noteNames[row].startsWith('C') ? '#202124' : '#5f6368';
+    ctx.font = window.state.noteNames[row].startsWith('C') ? 'bold 12px Roboto' : '12px Roboto';
     ctx.textAlign = 'right';
-    ctx.fillText(state.noteNames[row], pianoState.keyWidth - 4, y + pianoState.keyHeight * 0.7);
+    ctx.fillText(window.state.noteNames[row], pianoState.keyWidth - 4, y + pianoState.keyHeight * 0.7);
     ctx.font = '12px Roboto';
   }
 }
@@ -227,7 +227,7 @@ function redrawPianoKey(row) {
 function handlePianoMouseDown(e) {
   const pos = getMousePos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < state.ROWS) {
+  if (row >= 0 && row < window.state.ROWS) {
     playPianoKey(row);
     pianoState.isMouseDown = true;
     pianoState.lastHoveredRow = row;
@@ -239,7 +239,7 @@ function handlePianoMouseMove(e) {
   if (!pianoState.isMouseDown) return;
   const pos = getMousePos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < state.ROWS && row !== pianoState.lastHoveredRow) {
+  if (row >= 0 && row < window.state.ROWS && row !== pianoState.lastHoveredRow) {
     playPianoKey(row);
     pianoState.lastHoveredRow = row;
   }
@@ -256,7 +256,7 @@ function handlePianoTouchStart(e) {
   e.preventDefault();
   const pos = getTouchPos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < state.ROWS) {
+  if (row >= 0 && row < window.state.ROWS) {
     playPianoKey(row);
     pianoState.isMouseDown = true;
     pianoState.lastHoveredRow = row;
@@ -269,7 +269,7 @@ function handlePianoTouchMove(e) {
   if (!pianoState.isMouseDown) return;
   const pos = getTouchPos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < state.ROWS && row !== pianoState.lastHoveredRow) {
+  if (row >= 0 && row < window.state.ROWS && row !== pianoState.lastHoveredRow) {
     playPianoKey(row);
     pianoState.lastHoveredRow = row;
   }
@@ -285,7 +285,7 @@ function handlePianoTouchEnd() {
 function playPianoKey(row) {
   // Resume audio context if needed
   resumeAudioContext().then(() => {
-    const frequency = state.frequencies[row];
+    const frequency = window.state.frequencies[row];
     // Use a fixed duration of 0.3s for preview
     const duration = 0.3;
     // Use current waveform and ADSR values from the UI

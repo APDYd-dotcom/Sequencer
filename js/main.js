@@ -40,7 +40,7 @@ function setupUIListeners() {
     playStopBtn.addEventListener('click', () => {
       togglePlay();
       // Update button text
-      playStopBtn.textContent = state.isPlaying ? 'Stop' : 'Play';
+      playStopBtn.textContent = window.state.isPlaying ? 'Stop' : 'Play';
     });
   }
   
@@ -105,10 +105,10 @@ function loadDemoPattern() {
   
   // For each note in the demo pattern, set the corresponding row in the grid
   for (const [noteName, steps] of Object.entries(demoPattern)) {
-    const rowIndex = state.noteNames.indexOf(noteName);
+    const rowIndex = window.state.noteNames.indexOf(noteName);
     if (rowIndex >= 0) {
       steps.forEach(col => {
-        state.grid[rowIndex][col] = true;
+        window.state.grid[rowIndex][col] = true;
       });
     }
   }
@@ -125,7 +125,7 @@ function setupKeyboardShortcuts() {
       // Update button text
       const playStopBtn = document.getElementById('playStopBtn');
       if (playStopBtn) {
-        playStopBtn.textContent = state.isPlaying ? 'Stop' : 'Play';
+        playStopBtn.textContent = window.state.isPlaying ? 'Stop' : 'Play';
       }
     }
     // C: clear
@@ -146,5 +146,5 @@ if (document.readyState === 'loading') {
 // Expose a global function for debugging if needed
 window.app = {
   initApp,
-  state
+  state: window.state
 };
