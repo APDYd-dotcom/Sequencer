@@ -1,6 +1,25 @@
 // main.js - Main application entry point, UI wiring, and initialization
 let isInitialized = false;
 
+// Keyboard mapping for white keys (two octaves, low to high)
+// Notes: C4, D4, E4, F4, G4, A4, B4, C5, D5, E5, F5, G5, A5, B5
+const keyMap = {
+  'a': 0,  // C4
+  's': 1,  // D4
+  'd': 2,  // E4
+  'f': 3,  // F4
+  'g': 4,  // G4
+  'h': 5,  // A4
+  'j': 6,  // B4
+  'k': 7,  // C5
+  'l': 8,  // D5
+  ';': 9,  // E5
+  'q': 10, // F5
+  'w': 11, // G5
+  'e': 12, // A5
+  'r': 13  // B5
+};
+
 // Initialize the application
 function initApp() {
   if (isInitialized) return;
@@ -138,6 +157,27 @@ function setupKeyboardShortcuts() {
     if (e.key === 'c' || e.key === 'C') {
       e.preventDefault();
       clearGrid();
+    }
+    // Keyboard keys to play notes (white keys only)
+    if (e.key in keyMap) {
+      e.preventDefault();
+      const row = keyMap[e.key];
+      // Play the note for a fixed duration (e.g., 0.5 seconds)
+      // Resume audio context if needed
+      resumeAudioContext().then(() => {
+        const frequency = window.state.frequencies[row];
+        const duration = 0.5; // seconds
+        const waveform = document.getElementById('waveformSelect').value;
+        const env = {
+          attack: parseFloat(document.getElementById('attackSlider').value),
+          decay: parseFloat(document.getElementById('decaySlider').value),
+          sustain: parseFloat(document.getElementById('sustainSlider').value),
+          release: parseFloat(document.getElementById('releaseSlider').value)
+        };
+        playNote(frequency, audioContext.currentTime, duration, waveform, env);
+        // Flash the piano key
+        flashPianoKey(row, 0, duration * 1000); // delay 0, duration in ms
+      });
     }
   });
 }
