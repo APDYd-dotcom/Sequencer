@@ -34,9 +34,10 @@ function playNote(frequency, startTime, duration, waveform, envelope) {
   oscillator.connect(noteGain);
   noteGain.connect(masterGain);
 
-  // Apply ADSR envelope
+  // Apply ADSR envelope correctly for any gate duration
   const { attack, decay, sustain, release } = envelope;
   const now = startTime;
+  const gateTime = duration;
 
   // Attack: 0 -> 1
   noteGain.gain.cancelScheduledValues(now);
@@ -46,17 +47,28 @@ function playNote(frequency, startTime, duration, waveform, envelope) {
   // Decay: 1 -> sustain
   noteGain.gain.linearRampToValueAtTime(sustain, now + attack + decay);
 
-  // Sustain: hold until note end (gate duration)
-  // Set sustain value to be held until release starts
-  noteGain.gain.setValueAtTime(sustain, now + duration);
-
-  // Release: sustain -> 0
-  noteGain.gain.linearRampToValueAtTime(0, now + duration + release);
+  // Compute the value at the end of the gate if we were to follow attack+decay only
+  let valueAtGateEnd = sustain;
+  if (gateTime < attack + decay) {
+    // During attack or decay
+    if (gateTime <= attack) {
+      // Still in attack phase
+      valueAtGateEnd = gateTime / attack; // linear from 0 to 1
+    } else {
+      // In decay phase
+      const decayProgress = (gateTime - attack) / decay;
+      valueAtGateEnd = 1 - decayProgress * (1 - sustain); // from 1 to sustain
+    }
+  }
+  // Set the value at the end of the gate to valueAtGateEnd
+  noteGain.gain.setValueAtTime(valueAtGateEnd, now + gateTime);
+  // Release: valueAtGateEnd -> 0
+  noteGain.gain.linearRampToValueAtTime(0, now + gateTime + release);
 
   // Start the oscillator
   oscillator.start(now);
   // Stop the oscillator after the note (including release) ends
-  oscillator.stop(now + duration + release);
+  oscillator.stop(now + gateTime + release);
 }
 
 // Set master volume
