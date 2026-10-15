@@ -38,6 +38,22 @@ function initPiano() {
 
 // Resize the piano canvas to match the grid height and handle HiDPI
 function resizePiano() {
+  // If canvas not yet created, we cannot set its size; just compute logical dimensions for later use
+  if (!pianoState.canvas) {
+    // Still compute logical dimensions based on container height (if available)
+    const container = document.querySelector('.grid-area');
+    if (container) {
+      pianoState.logicalHeight = container.clientHeight;
+      pianoState.logicalWidth = 72; // fixed width in logical pixels (as per requirement)
+      // Calculate key dimensions (will be used later when canvas exists)
+      if (window.state) {
+        pianoState.keyHeight = pianoState.logicalHeight / window.state.ROWS; // same as grid row height
+        pianoState.keyWidth = pianoState.logicalWidth;
+      }
+    }
+    return;
+  }
+  
   const container = document.querySelector('.grid-area');
   if (!container) return;
   
@@ -66,6 +82,9 @@ function resizePiano() {
 
 // Draw the piano keyboard
 function drawPiano() {
+  // Ensure sequencer is initialized and canvas exists
+  if (!window.state || !pianoState.canvas) return;
+  
   const ctx = pianoState.ctx;
   const width = pianoState.logicalWidth;
   const height = pianoState.logicalHeight;
@@ -133,6 +152,9 @@ function drawPiano() {
 
 // Flash a piano key (highlight it blue for a duration)
 function flashPianoKey(row, delayMs, durationMs) {
+  // Ensure sequencer is initialized
+  if (!window.state) return;
+  
   // Use setTimeout to delay the flash, then draw the highlight and remove it after duration
   setTimeout(() => {
     if (!pianoState.canvas) return;
@@ -225,6 +247,7 @@ function redrawPianoKey(row) {
 
 // Handle piano mouse down
 function handlePianoMouseDown(e) {
+  if (!window.state) return;
   const pos = getMousePos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
   if (row >= 0 && row < window.state.ROWS) {
@@ -236,7 +259,7 @@ function handlePianoMouseDown(e) {
 
 // Handle piano mouse move
 function handlePianoMouseMove(e) {
-  if (!pianoState.isMouseDown) return;
+  if (!pianoState.isMouseDown || !window.state) return;
   const pos = getMousePos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
   if (row >= 0 && row < window.state.ROWS && row !== pianoState.lastHoveredRow) {
@@ -254,6 +277,7 @@ function handlePianoMouseUp() {
 // Handle piano touch start
 function handlePianoTouchStart(e) {
   e.preventDefault();
+  if (!window.state) return;
   const pos = getTouchPos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
   if (row >= 0 && row < window.state.ROWS) {
@@ -266,7 +290,7 @@ function handlePianoTouchStart(e) {
 // Handle piano touch move
 function handlePianoTouchMove(e) {
   e.preventDefault();
-  if (!pianoState.isMouseDown) return;
+  if (!pianoState.isMouseDown || !window.state) return;
   const pos = getTouchPos(pianoState.canvas, e);
   const row = Math.floor(pos.y / pianoState.keyHeight);
   if (row >= 0 && row < window.state.ROWS && row !== pianoState.lastHoveredRow) {
@@ -281,8 +305,10 @@ function handlePianoTouchEnd() {
   pianoState.lastHoveredRow = -1;
 }
 
-// Play a note on the piano key (preview)
+// Play a note on the piano key (preview) and toggle grid cell at current step
 function playPianoKey(row) {
+  if (!window.state) return;
+  
   // Resume audio context if needed
   resumeAudioContext().then(() => {
     const frequency = window.state.frequencies[row];
@@ -297,6 +323,11 @@ function playPianoKey(row) {
       release: parseFloat(document.getElementById('releaseSlider').value)
     };
     playNote(frequency, audioContext.currentTime, duration, waveform, env);
+    // Flash the piano key
+    flashPianoKey(row, 0, duration * 1000); // delay 0, duration in ms
+    // Toggle grid cell at current step (sequencer state is guaranteed to exist after initSequencer)
+    window.state.grid[row][window.state.currentStep] = !window.state.grid[row][window.state.currentStep];
+    window.drawGrid();
   });
 }
 

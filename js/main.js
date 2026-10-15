@@ -25,13 +25,13 @@ function initApp() {
   if (isInitialized) return;
   isInitialized = true;
   
-  // Initialize modules in order: audio, envelope, piano, sequencer
+  // Initialize modules in order: audio, envelope, sequencer, piano
   initAudio();
   initEnvelope();
-  initPiano(); // <-- new
-  initSequencer();
+  initSequencer(); // <-- sequencer first so piano can use window.state
+  initPiano();     // <-- piano after sequencer
   
-  // After initializing sequencer, ensure piano size matches grid size
+  // After initializing both, ensure piano size matches grid size
   resizePiano();
   
   // Set up UI event listeners
@@ -158,26 +158,12 @@ function setupKeyboardShortcuts() {
       e.preventDefault();
       clearGrid();
     }
-    // Keyboard keys to play notes (white keys only)
+    // Keyboard keys to play notes (white keys only) and toggle grid cell
     if (e.key in keyMap) {
       e.preventDefault();
       const row = keyMap[e.key];
-      // Play the note for a fixed duration (e.g., 0.5 seconds)
-      // Resume audio context if needed
-      resumeAudioContext().then(() => {
-        const frequency = window.state.frequencies[row];
-        const duration = 0.5; // seconds
-        const waveform = document.getElementById('waveformSelect').value;
-        const env = {
-          attack: parseFloat(document.getElementById('attackSlider').value),
-          decay: parseFloat(document.getElementById('decaySlider').value),
-          sustain: parseFloat(document.getElementById('sustainSlider').value),
-          release: parseFloat(document.getElementById('releaseSlider').value)
-        };
-        playNote(frequency, audioContext.currentTime, duration, waveform, env);
-        // Flash the piano key
-        flashPianoKey(row, 0, duration * 1000); // delay 0, duration in ms
-      });
+      // Play the note, flash key, and toggle grid cell at current step via piano.js function
+      window.playPianoKey(row);
     }
   });
 }
