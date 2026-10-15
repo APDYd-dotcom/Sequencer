@@ -187,9 +187,11 @@ function drawGrid() {
     }
   }
   
-  // Draw playhead (current step)
-  ctx.fillStyle = 'rgba(26, 115, 232, 0.3)'; // translucent blue
-  ctx.fillRect(state.currentStep * state.cellWidth, 0, state.cellWidth, height);
+  // Draw playhead only when not playing (so we see it when stopped)
+  if (!state.isPlaying) {
+    ctx.fillStyle = 'rgba(26, 115, 232, 0.3)'; // translucent blue
+    ctx.fillRect(state.currentStep * state.cellWidth, 0, state.cellWidth, height);
+  }
 }
 
 // Handle mouse down event
