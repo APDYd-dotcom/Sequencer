@@ -323,6 +323,7 @@ function getTouchPos(canvas, evt) {
 window.initPiano = initPiano;
 window.drawPiano = drawPiano;
 window.flashPianoKey = flashPianoKey;
+window.resizePiano = resizePiano;
 
 // Initialize on load (but we'll call it from main.js after DOM is ready)
 // We'll not auto-init here to avoid errors if DOM isn't ready.

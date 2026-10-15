@@ -12,6 +12,9 @@ function initApp() {
   initPiano(); // <-- new
   initSequencer();
   
+  // After initializing sequencer, ensure piano size matches grid size
+  resizePiano();
+  
   // Set up UI event listeners
   setupUIListeners();
   
@@ -22,7 +25,10 @@ function initApp() {
   setupKeyboardShortcuts();
   
   // Handle window resize
-  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    resizePiano();
+  });
   
   // Ensure audio context is resumed on first user interaction
   document.addEventListener('click', () => {

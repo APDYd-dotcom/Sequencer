@@ -108,7 +108,7 @@ function resizeCanvas() {
   state.canvas.height = state.logicalHeight * window.devicePixelRatio;
   
   // Set the CSS size
-  state.canvas.style.width = containerWidth + 'px';
+  state.canvas.style.width = state.logicalWidth + 'px';
   state.canvas.style.height = state.logicalHeight + 'px';
   
   // Set the transform to scale by devicePixelRatio
@@ -119,6 +119,11 @@ function resizeCanvas() {
   state.cellHeight = state.ROW_HEIGHT; // fixed
   
   drawGrid();
+  
+  // Also resize piano to match height
+  if (window.resizePiano) {
+    window.resizePiano();
+  }
 }
 
 // Draw the entire grid
