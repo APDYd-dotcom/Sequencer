@@ -328,6 +328,13 @@ function playPianoKey(row) {
     // Toggle grid cell at current step (sequencer state is guaranteed to exist after initSequencer)
     window.state.grid[row][window.state.currentStep] = !window.state.grid[row][window.state.currentStep];
     window.drawGrid();
+    
+    // Step recording: advance to the next step so the next note goes to the next column
+    // Only advance if the sequencer is not currently playing (to avoid interfering with playback)
+    if (!window.state.isPlaying) {
+      window.state.currentStep = (window.state.currentStep + 1) % window.state.COLS;
+      window.drawGrid();
+    }
   });
 }
 
