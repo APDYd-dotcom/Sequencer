@@ -382,7 +382,6 @@ window.applyADSR = applyADSR;
 window.setMasterVolume = setMasterVolume;
 window.resumeAudioContext = resumeAudioContext;
 window.initAudio = initAudio;
-window.audioContext = audioContext;
 window.getAudioContext = () => audioContext;
 window.makeAdditiveInstrument = makeAdditiveInstrument;
 EOF

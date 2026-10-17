@@ -1,23 +1,34 @@
 // main.js - Main application entry point, UI wiring, and initialization
 let isInitialized = false;
 
-// Keyboard mapping for white keys (two octaves, low to high)
-// Notes: C4, D4, E4, F4, G4, A4, B4, C5, D5, E5, F5, G5, A5, B5
+// Keyboard mapping for all rows (C4 to B5, chromatic, row 0 = B5 ... row 23 = C4)
+// White keys
 const keyMap = {
-  'a': 0,  // C4
-  's': 1,  // D4
-  'd': 2,  // E4
-  'f': 3,  // F4
-  'g': 4,  // G4
-  'h': 5,  // A4
-  'j': 6,  // B4
-  'k': 7,  // C5
-  'l': 8,  // D5
-  ';': 9,  // E5
-  'q': 10, // F5
-  'w': 11, // G5
-  'e': 12, // A5
-  'r': 13  // B5
+  'a': 23,  // C4
+  's': 21,  // D4
+  'd': 19,  // E4
+  'f': 18,  // F4
+  'g': 16,  // G4
+  'h': 14,  // A4
+  'j': 12,  // B4
+  'k': 11,  // C5
+  'l': 9,   // D5
+  ';': 7,   // E5
+  'q': 6,   // F5
+  'w': 4,   // G5
+  'e': 2,   // A5
+  'r': 0,   // B5
+  // Black keys (sharps/flats)
+  'z': 22,  // C#4
+  'x': 20,  // D#4
+  'c': 17,  // F#4
+  'v': 15,  // G#4
+  'b': 13,  // A#4
+  'n': 10,  // C#5
+  'm': 8,   // D#5
+  ',': 5,   // F#5
+  '.': 3,   // G#5
+  '/': 1,   // A#5
 };
 
 // Initialize the application
@@ -35,6 +46,8 @@ function initApp() {
   
   // Build timbre menu from code
   buildTimbreMenu();
+  // Load preset for default timbre
+  loadTimbrePreset('piano');
   
   // Initialize sequencer and piano (sequencer first so piano can use window.state)
   initSequencer();
@@ -42,7 +55,10 @@ function initApp() {
   
   // After initializing both, ensure piano size matches grid size
   resizePiano();
-  
+
+  // Render the keyboard map (playable vs unplayable keys)
+  renderKeyboardMap();
+
   // Set up UI event listeners
   setupUIListeners();
   
@@ -56,6 +72,7 @@ function initApp() {
   window.addEventListener('resize', () => {
     resizeCanvas();
     resizePiano();
+    renderKeyboardMap();
   });
   
   // Ensure audio context is resumed on first user interaction
@@ -235,6 +252,51 @@ function loadDemoPattern() {
     }
   }
   drawGrid();
+}
+
+// Render the keyboard map showing which keys can/cannot be used to play notes
+function renderKeyboardMap() {
+  const container = document.getElementById('keyboardMap');
+  if (!container || !window.state) return;
+
+  // Build reverse map: row -> keyboard key
+  const rowToKey = {};
+  for (const [key, row] of Object.entries(keyMap)) {
+    rowToKey[row] = key;
+  }
+
+  container.innerHTML = '';
+
+  const hint = document.createElement('p');
+  hint.className = 'keyboard-hint-text';
+  hint.textContent = 'Press a key to play the corresponding note (all 24 notes C4–B5 are mapped).';
+  container.appendChild(hint);
+
+  const mapWrap = document.createElement('div');
+  mapWrap.className = 'keyboard-keys';
+
+  for (let row = 0; row < window.state.ROWS; row++) {
+    const key = rowToKey[row];
+    const noteName = window.state.noteNames[row];
+    const isPlayable = key !== undefined;
+
+    const keyEl = document.createElement('div');
+    keyEl.className = 'key ' + (isPlayable ? 'playable' : 'unplayable');
+    keyEl.title = noteName;
+
+    const kbd = document.createElement('kbd');
+    kbd.textContent = isPlayable ? key : '—';
+    keyEl.appendChild(kbd);
+
+    const note = document.createElement('span');
+    note.className = 'key-note';
+    note.textContent = noteName;
+    keyEl.appendChild(note);
+
+    mapWrap.appendChild(keyEl);
+  }
+
+  container.appendChild(mapWrap);
 }
 
 // Set up keyboard shortcuts
