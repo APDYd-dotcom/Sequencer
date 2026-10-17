@@ -25,11 +25,20 @@ function initApp() {
   if (isInitialized) return;
   isInitialized = true;
   
-  // Initialize modules in order: audio, envelope, sequencer, piano
+  // Initialize audio context first
   initAudio();
+  // Update global audioContext reference
+  window.audioContext = audioContext;
+  
+  // Initialize envelope
   initEnvelope();
-  initSequencer(); // <-- sequencer first so piano can use window.state
-  initPiano();     // <-- piano after sequencer
+  
+  // Build timbre menu from code
+  buildTimbreMenu();
+  
+  // Initialize sequencer and piano (sequencer first so piano can use window.state)
+  initSequencer();
+  initPiano();
   
   // After initializing both, ensure piano size matches grid size
   resizePiano();
@@ -55,6 +64,54 @@ function initApp() {
       console.log('AudioContext resumed');
     });
   }, { once: true });
+}
+
+// Build the timbre select options from INSTRUMENTS
+function buildTimbreMenu() {
+  const select = document.getElementById('waveformSelect');
+  if (!select) return;
+  
+  // Group instruments by family
+  const families = {};
+  for (const [key, inst] of Object.entries(INSTRUMENTS)) {
+    const family = inst.family || 'Other';
+    if (!families[family]) families[family] = [];
+    families[family].push({ key, label: inst.label });
+  }
+  
+  // Clear select
+  select.innerHTML = '';
+  
+  // Add optgroups for each family (in order)
+  const familyOrder = ['Keyboards', 'Strings', 'Plucked', 'Woodwinds', 'Brass', 'Reeds & Voices', 'Mallets', 'Synth'];
+  for (const family of familyOrder) {
+    if (families[family]) {
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = family;
+      for (const { key, label } of families[family]) {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = label;
+        optgroup.appendChild(option);
+      }
+      select.appendChild(optgroup);
+    }
+  }
+  
+  // Add Synth waves group
+  const synthGroup = document.createElement('optgroup');
+  synthGroup.label = 'Synth waves';
+  const waves = ['sine', 'square', 'sawtooth', 'triangle'];
+  for (const wave of waves) {
+    const option = document.createElement('option');
+    option.value = wave;
+    option.textContent = wave.charAt(0).toUpperCase() + wave.slice(1);
+    synthGroup.appendChild(option);
+  }
+  select.appendChild(synthGroup);
+  
+  // Set default selection to 'piano'
+  select.value = 'piano';
 }
 
 // Set up UI event listeners
@@ -105,11 +162,51 @@ function setupUIListeners() {
     volumeValue.textContent = volumeSlider.value;
   }
   
-  // Waveform select
-  const waveformSelect = document.getElementById('waveformSelect');
-  if (waveformSelect) {
-    // No action needed, value is read when playing notes
+  // Timbre select (loads ADSR preset)
+  const timbreSelect = document.getElementById('waveformSelect');
+  if (timbreSelect) {
+    timbreSelect.addEventListener('change', () => {
+      loadTimbrePreset(timbreSelect.value);
+      // Play preview note
+      playPreviewNote();
+    });
   }
+}
+
+// Load ADSR preset for a timbre into sliders
+function loadTimbrePreset(timbre) {
+  const instrument = INSTRUMENTS[timbre];
+  if (instrument && instrument.preset) {
+    const { attack, decay, sustain, release } = instrument.preset;
+    // Update sliders
+    document.getElementById('attackSlider').value = attack;
+    document.getElementById('decaySlider').value = decay;
+    document.getElementById('sustainSlider').value = sustain;
+    document.getElementById('releaseSlider').value = release;
+    // Update displayed values
+    document.getElementById('attackValue').textContent = attack;
+    document.getElementById('decayValue').textContent = decay;
+    document.getElementById('sustainValue').textContent = sustain;
+    document.getElementById('releaseValue').textContent = release;
+    // Redraw envelope
+    if (typeof drawEnvelope === 'function') drawEnvelope();
+  }
+}
+
+// Play a short preview note when timbre changes
+function playPreviewNote() {
+  resumeAudioContext().then(() => {
+    const frequency = 440; // A4
+    const duration = 0.5;
+    const timbre = document.getElementById('waveformSelect').value;
+    const envelope = {
+      attack: parseFloat(document.getElementById('attackSlider').value),
+      decay: parseFloat(document.getElementById('decaySlider').value),
+      sustain: parseFloat(document.getElementById('sustainSlider').value),
+      release: parseFloat(document.getElementById('releaseSlider').value)
+    };
+    playNote(frequency, audioContext.currentTime, duration, timbre, envelope);
+  });
 }
 
 // Load a demo pattern (some notes filled in)
