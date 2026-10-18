@@ -953,14 +953,22 @@ function setBars(nb) {
 // Duplicate current bar to the next bar
 function duplicateBar() {
   const bar = currentBar();
-  if (bar >= state.bars - 1) {
-    // Add a bar if it's the last one
-    setBars(state.bars + 1);
-  }
+  const onLastBar = bar >= state.bars - 1;
+  if (onLastBar && state.bars >= 128) return;
+  const undoLenBefore = state.undoStack.length;
   beginEdit();
+  const before = state.undoSnapshot;
+  if (onLastBar) {
+    setBars(state.bars + 1);
+    state.undoStack.length = undoLenBefore;
+    state.undoSnapshot = before;
+  }
   const srcStart = bar * state.STEPS_PER_BAR;
   const dstStart = (bar + 1) * state.STEPS_PER_BAR;
-  if (dstStart >= state.COLS) return;
+  if (dstStart >= state.COLS) {
+    state.undoSnapshot = null;
+    return;
+  }
 
   for (let row = 0; row < state.ROWS; row++) {
     for (let i = 0; i < state.STEPS_PER_BAR; i++) {
@@ -1012,8 +1020,8 @@ function copyBar() {
 
 // Paste clipboard to current bar
 function pasteBar() {
-  beginEdit();
   if (!state.clipboardBar) return;
+  beginEdit();
   const bar = currentBar();
   const start = bar * state.STEPS_PER_BAR;
   const end = Math.min(start + state.clipboardBar[0].length, state.COLS);
@@ -1025,6 +1033,8 @@ function pasteBar() {
   state.cacheDirty = true;
   drawGrid();
   drawOverview();
+  endEdit();
+  debouncedAutosave();
 }
 
 // ---- Undo/Redo ----
