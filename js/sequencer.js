@@ -137,6 +137,9 @@ function initSequencer() {
   if (scroller) {
     scroller.scrollTop = Math.max(0, c4Y - scroller.clientHeight / 2);
     state.scrollY = scroller.scrollTop;
+    state.scrollX = scroller.scrollLeft;
+    drawGrid();
+    drawOverview();
   }
 
   // Set up pointer events
@@ -882,12 +885,12 @@ function setBars(nb) {
 
 // Duplicate current bar to the next bar
 function duplicateBar() {
-  beginEdit();
   const bar = currentBar();
   if (bar >= state.bars - 1) {
     // Add a bar if it's the last one
     setBars(state.bars + 1);
   }
+  beginEdit();
   const srcStart = bar * state.STEPS_PER_BAR;
   const dstStart = (bar + 1) * state.STEPS_PER_BAR;
   if (dstStart >= state.COLS) return;
