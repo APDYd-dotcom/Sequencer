@@ -2,7 +2,8 @@
 
 const SAMPLE_RATE = 44100;
 const LEAD = 0.05;          // seconds of silence before the first note
-const REVERB_TAIL = 2.5;    // seconds of tail for reverb decay
+const REVERB_TAIL = 3.0;    // seconds of tail for reverb decay (per segment)
+const SEGMENT_BARS = 8;     // render in 8-bar segments
 
 let exportDialog = null;
 let exportProgress = null;
@@ -33,7 +34,6 @@ function initExport() {
     exportActionBtn.addEventListener('click', doExport);
   }
 
-  // Recompute info text when the dialog is shown
   if (exportDialog) {
     exportDialog.addEventListener('show', updateExportInfo);
     exportDialog.addEventListener('cancel', (e) => {
@@ -50,11 +50,12 @@ function updateExportInfo() {
   const bpm = state.bpm;
   const stepTime = 60.0 / (bpm * 4);
   let stepsText, stepCount;
-  if (state.loopOn) {
-    stepsText = `steps ${state.loopStart + 1}-${state.loopEnd + 1}`;
+  const exportScope = document.getElementById('exportScope') ? document.getElementById('exportScope').value : 'song';
+  if (exportScope === 'loop' && state.loopOn) {
+    stepsText = `loop steps ${state.loopStart + 1}-${state.loopEnd + 1}`;
     stepCount = state.loopEnd - state.loopStart + 1;
   } else {
-    stepsText = `steps 1-${state.COLS}`;
+    stepsText = `all ${state.COLS} steps`;
     stepCount = state.COLS;
   }
   const release = parseFloat(document.getElementById('releaseSlider').value) || 0;
@@ -65,7 +66,6 @@ function updateExportInfo() {
 function openExportDialog() {
   if (!window.state || window.state.exporting) return;
 
-  // Pause the sequencer if playing
   if (window.state.isPlaying && typeof window.stopSequencer === 'function') {
     window.stopSequencer();
   }
@@ -124,20 +124,17 @@ function writeWavHeader(dataView, numChannels, sampleRate, bytesPerSample, dataS
   const blockAlign = numChannels * bytesPerSample;
   const totalSize = 36 + dataSize;
 
-  // RIFF
   dataView.setUint32(0, 0x52494664, false); // "RIFF"
   dataView.setUint32(4, totalSize, false);
   dataView.setUint32(8, 0x57415645, false); // "WAVE"
-  // fmt
   dataView.setUint32(12, 0x666d7420, false); // "fmt "
-  dataView.setUint32(16, 16, false);         // subchunk1Size
-  dataView.setUint16(20, 1, false);          // audioFormat (PCM)
+  dataView.setUint32(16, 16, false);
+  dataView.setUint16(20, 1, false);
   dataView.setUint16(22, numChannels, false);
   dataView.setUint32(24, sampleRate, false);
   dataView.setUint32(28, byteRate, false);
   dataView.setUint16(32, blockAlign, false);
-  dataView.setUint16(34, bytesPerSample * 8, false); // bitsPerSample
-  // data
+  dataView.setUint16(34, bytesPerSample * 8, false);
   dataView.setUint32(36, 0x64617461, false); // "data"
   dataView.setUint32(40, dataSize, false);
 }
@@ -154,14 +151,12 @@ async function encodeMp3(left, right, sampleRate, kbps, onProgress) {
     const end = Math.min(offset + samplesPerFrame, totalSamples);
     const chunkLen = end - offset;
 
-    // Convert Float32 to Int16 for lamejs
     const left16 = new Int16Array(samplesPerFrame);
     const right16 = new Int16Array(samplesPerFrame);
     for (let i = 0; i < chunkLen; i++) {
       left16[i] = clampSample(left[offset + i]) * 32767;
       right16[i] = clampSample(right[offset + i]) * 32767;
     }
-    // Rest of the frame stays zero (silent padding for the last block)
 
     const encoded = encoder.encodeBuffer(left16, right16);
     if (encoded.length > 0) chunks.push(encoded);
@@ -183,15 +178,84 @@ async function encodeMp3(left, right, sampleRate, kbps, onProgress) {
   return chunks;
 }
 
+// Render a single segment using an OfflineAudioContext
+async function renderSegment(segmentStartStep, segmentEndStep, repeat, stepTime, timbre, env, lead, segmentSeconds, sampleRate) {
+  const segmentFrames = Math.ceil(segmentSeconds * sampleRate);
+  const offlineContext = new OfflineAudioContext(2, segmentFrames, sampleRate);
+
+  // Save and swap globals
+  const savedAudioContext = window.getAudioContext ? window.getAudioContext() : window.audioContext;
+  const savedMasterGain = window.masterGain;
+  const savedMasterBus = window.masterBus;
+  const savedCompressor = window.compressor;
+  const savedLimiter = window.limiter;
+  const savedConvolver = window.convolver;
+  const savedVolume = savedMasterGain ? savedMasterGain.gain.value : 0.8;
+
+  if (window.waveCache) {
+    for (const key of Object.keys(window.waveCache)) {
+      delete window.waveCache[key];
+    }
+  }
+
+  try {
+    window.setAudioContext(offlineContext);
+    window.audioContext = offlineContext;
+    window.initAudio();
+    if (window.masterGain) {
+      window.masterGain.gain.value = savedVolume;
+    }
+
+    const loopStart = segmentStartStep;
+    const loopEnd = segmentEndStep;
+    const stepsPerSegment = segmentEndStep - segmentStartStep + 1;
+
+    // Schedule notes for this segment
+    for (let rep = 0; rep < repeat; rep++) {
+      for (let i = 0; i < stepsPerSegment; i++) {
+        const step = segmentStartStep + i;
+        const time = lead + (rep * stepsPerSegment + i) * stepTime;
+        for (let row = 0; row < window.state.ROWS; row++) {
+          if (window.state.grid[row][step]) {
+            const frequency = window.state.frequencies[row];
+            window.playNote(frequency, time, stepTime, timbre, env);
+          }
+        }
+      }
+    }
+
+    const renderedBuffer = await offlineContext.startRendering();
+    return { left: renderedBuffer.getChannelData(0), right: renderedBuffer.getChannelData(1) };
+  } finally {
+    // Restore globals
+    if (window.setAudioContext) {
+      window.setAudioContext(savedAudioContext);
+    }
+    window.audioContext = savedAudioContext;
+    window.masterGain = savedMasterGain;
+    window.masterBus = savedMasterBus;
+    window.compressor = savedCompressor;
+    window.limiter = savedLimiter;
+    window.convolver = savedConvolver;
+
+    if (window.waveCache) {
+      for (const key of Object.keys(window.waveCache)) {
+        delete window.waveCache[key];
+      }
+    }
+  }
+}
+
 async function doExport() {
   if (!window.state) return;
   const state = window.state;
 
   if (state.exporting) return;
 
-  // Determine export range
+  const exportScope = document.getElementById('exportScope') ? document.getElementById('exportScope').value : 'song';
+
   let startStep, endStep;
-  if (state.loopOn) {
+  if (exportScope === 'loop' && state.loopOn) {
     startStep = state.loopStart;
     endStep = state.loopEnd;
   } else {
@@ -199,7 +263,6 @@ async function doExport() {
     endStep = state.COLS - 1;
   }
 
-  // Refuse empty pattern
   if (!hasNotesInRange(startStep, endStep)) {
     if (exportStatus) {
       exportStatus.textContent = 'Nothing to export: add some notes first.';
@@ -214,8 +277,8 @@ async function doExport() {
   const release = parseFloat(document.getElementById('releaseSlider').value) || 0;
   const timbre = document.getElementById('waveformSelect').value;
 
-  const stepsPerLoop = endStep - startStep + 1;
-  const totalSeconds = LEAD + stepsPerLoop * stepTime * repeat + REVERB_TAIL + release;
+  const stepsPerRange = endStep - startStep + 1;
+  const totalSeconds = LEAD + stepsPerRange * stepTime * repeat + REVERB_TAIL + release;
   const totalFrames = Math.ceil(totalSeconds * SAMPLE_RATE);
 
   // Lock app
@@ -242,7 +305,6 @@ async function doExport() {
   const savedConvolver = window.convolver;
   const savedVolume = savedMasterGain ? savedMasterGain.gain.value : 0.8;
 
-  // Clear waveCache if it exists
   if (window.waveCache) {
     for (const key of Object.keys(window.waveCache)) {
       delete window.waveCache[key];
@@ -250,48 +312,46 @@ async function doExport() {
   }
 
   try {
-    // Swap to offline context
-    const offlineContext = new OfflineAudioContext(2, totalFrames, SAMPLE_RATE);
-    if (window.setAudioContext) {
-      window.setAudioContext(offlineContext);
-    }
-    window.audioContext = offlineContext;
+    // Render in segments of SEGMENT_BARS
+    const stepsPerSegment = SEGMENT_BARS * state.STEPS_PER_BAR;
+    const segmentSeconds = stepsPerSegment * stepTime + REVERB_TAIL;
+    let renderedOffset = 0;
+    const finalLeft = new Float32Array(totalFrames);
+    const finalRight = new Float32Array(totalFrames);
 
-    // Reinitialize audio graph on the offline context
-    window.initAudio();
-    if (window.masterGain) {
-      window.masterGain.gain.value = savedVolume;
-    }
+    let segmentStart = startStep;
+    let segmentRenderCount = 0;
 
-    // Schedule all notes
-    for (let rep = 0; rep < repeat; rep++) {
-      for (let i = 0; i < stepsPerLoop; i++) {
-        const step = startStep + i;
-        const time = LEAD + (rep * stepsPerLoop + i) * stepTime;
-        for (let row = 0; row < state.ROWS; row++) {
-          if (state.grid[row][step]) {
-            const frequency = state.frequencies[row];
-            const env = {
-              attack: parseFloat(document.getElementById('attackSlider').value),
-              decay: parseFloat(document.getElementById('decaySlider').value),
-              sustain: parseFloat(document.getElementById('sustainSlider').value),
-              release: release,
-            };
-            window.playNote(frequency, time, stepTime, timbre, env);
-          }
-        }
+    while (segmentStart <= endStep) {
+      const segmentEnd = Math.min(segmentStart + stepsPerSegment - 1, endStep);
+      const segmentRender = await renderSegment(
+        segmentStart, segmentEnd, repeat, stepTime, timbre, env,
+        LEAD, segmentSeconds, SAMPLE_RATE
+      );
+
+      // Overlap-add into final buffer
+      const startOffset = Math.round((segmentStart - startStep) * stepTime * SAMPLE_RATE);
+      const copyLen = Math.min(segmentRender.left.length, totalFrames - startOffset);
+      for (let i = 0; i < copyLen; i++) {
+        finalLeft[startOffset + i] += segmentRender.left[i];
+        finalRight[startOffset + i] += segmentRender.right[i];
       }
-    }
 
-    if (exportStatus) {
-      exportStatus.textContent = 'Rendering the audio...';
-    }
-    if (exportProgress) {
-      exportProgress.value = 30;
-    }
+      segmentRenderCount++;
+      segmentStart = segmentEnd + 1;
 
-    // Render
-    const renderedBuffer = await offlineContext.startRendering();
+      // Update progress (rendering: 0-60%)
+      const renderProgress = Math.round((segmentStart - startStep) / (endStep - startStep + 1) * 60);
+      if (exportProgress) {
+        exportProgress.value = renderProgress;
+      }
+      if (exportStatus) {
+        exportStatus.textContent = `Rendering segment ${segmentRenderCount}...`;
+      }
+
+      // Yield to UI
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
 
     if (exportStatus) {
       exportStatus.textContent = 'Encoding MP3...';
@@ -300,23 +360,20 @@ async function doExport() {
       exportProgress.value = 60;
     }
 
-    const left = renderedBuffer.getChannelData(0);
-    const right = renderedBuffer.getChannelData(1);
-
+    // Encode
     let chunks;
     let mime = 'audio/mpeg';
     let ext = 'mp3';
 
     if (typeof lamejs !== 'undefined') {
-      chunks = await encodeMp3(left, right, SAMPLE_RATE, kbps, (p) => {
+      chunks = await encodeMp3(finalLeft, finalRight, SAMPLE_RATE, kbps, (p) => {
         if (exportProgress) {
           exportProgress.value = 60 + Math.round((p / 100) * 40);
         }
       });
     } else {
-      // WAV fallback
-      const left16 = floatToInt16(left);
-      const right16 = floatToInt16(right);
+      const left16 = floatToInt16(finalLeft);
+      const right16 = floatToInt16(finalRight);
       const interleaved = new Int16Array(left16.length * 2);
       for (let i = 0; i < left16.length; i++) {
         interleaved[i * 2] = left16[i];
@@ -373,7 +430,6 @@ async function doExport() {
     window.limiter = savedLimiter;
     window.convolver = savedConvolver;
 
-    // Clear waveCache again
     if (window.waveCache) {
       for (const key of Object.keys(window.waveCache)) {
         delete window.waveCache[key];
