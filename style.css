@@ -411,3 +411,113 @@ input[type="range"]::-moz-range-thumb {
     gap: 10px;
     margin-top: 4px;
 }
+
+/* Grid scroller (virtual scrolling) */
+#gridScroller {
+    overflow: auto;
+    position: relative;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    touch-action: pan-x pan-y;
+}
+.gridSpacer {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+#pianoCanvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 72px;
+    cursor: pointer;
+    touch-action: none;
+    background-color: var(--card-bg);
+    z-index: 2;
+}
+.grid-area {
+    position: absolute;
+    left: 72px;
+    top: 0;
+    overflow: hidden;
+}
+#gridCanvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    background-color: var(--card-bg);
+    z-index: 1;
+}
+
+/* Position readout */
+.position-readout {
+    font-size: 13px;
+    font-family: 'Roboto Mono', monospace;
+    color: var(--secondary-text);
+    padding: 4px 8px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-left: 16px;
+}
+
+/* Follow label */
+.follow-label {
+    font-size: 13px;
+    color: var(--secondary-text);
+    margin-left: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.follow-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+/* Zoom buttons are smaller */
+#zoomOutBtn, #zoomInBtn {
+    padding: 8px 12px;
+    min-width: 28px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .container {
+        padding: 0 8px;
+    }
+    .card {
+        padding: 16px;
+    }
+    .transport-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .button {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+    .sound-controls {
+        flex-direction: column;
+    }
+    .waveform-select, .volume-control, .adsr-group, #envelopeCanvas {
+        width: 100%;
+    }
+    .roll {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #pianoCanvas {
+        width: 100%;
+        height: 72px;
+    }
+}
+
+@media (max-width: 400px) {
+    #pianoCanvas {
+        width: 60px;
+    }
+}

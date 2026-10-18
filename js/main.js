@@ -1,35 +1,48 @@
 // main.js - Main application entry point, UI wiring, and initialization
 let isInitialized = false;
 
-// Keyboard mapping for all rows (C4 to B5, chromatic, row 0 = B5 ... row 23 = C4)
-// White keys
+// Keyboard mapping as MIDI note numbers (not row indexes)
+// Row index = 83 - midiNote (row 0 = B5/MIDI 83, row 23 = C4/MIDI 60)
 const keyMap = {
-  'a': 23,  // C4
-  's': 21,  // D4
-  'd': 19,  // E4
-  'f': 18,  // F4
-  'g': 16,  // G4
-  'h': 14,  // A4
-  'j': 12,  // B4
-  'k': 11,  // C5
-  'l': 9,   // D5
-  ';': 7,   // E5
-  'q': 6,   // F5
-  'w': 4,   // G5
-  'e': 2,   // A5
-  'r': 0,   // B5
+  // White keys
+  'a': 60,  // C4
+  's': 62,  // D4
+  'd': 64,  // E4
+  'f': 65,  // F4
+  'g': 67,  // G4
+  'h': 69,  // A4
+  'j': 71,  // B4
+  'k': 72,  // C5
+  'l': 74,  // D5
+  ';': 76,  // E5
+  'q': 77,  // F5
+  'w': 79,  // G5
+  'e': 81,  // A5
+  'r': 83,  // B5
   // Black keys (sharps/flats)
-  'z': 22,  // C#4
-  'x': 20,  // D#4
-  'c': 17,  // F#4
-  'v': 15,  // G#4
-  'b': 13,  // A#4
-  'n': 10,  // C#5
-  'm': 8,   // D#5
-  ',': 5,   // F#5
-  '.': 3,   // G#5
-  '/': 1,   // A#5
+  'z': 61,  // C#4
+  'x': 63,  // D#4
+  'c': 66,  // F#4
+  'v': 68,  // G#4
+  'b': 70,  // A#4
+  'n': 73,  // C#5
+  'm': 75,  // D#5
+  ',': 78,  // F#5
+  '.': 80,  // G#5
+  '/': 82,  // A#5
 };
+
+// Base MIDI note for keyboard mapping
+const KEYBOARD_BASE_MIDI = 60; // C4
+let keyboardOctaveShift = 0; // Z/X shift octave up/down
+
+// Convert MIDI note to row index (row 0 = highest note)
+function midiToRow(midiNote) {
+  // Row 0 = MIDI 83 (B5), row 23 = MIDI 60 (C4)
+  // General: row = (maxMidi - midiNote) where maxMidi = 60 + ROWS - 1
+  const maxMidi = 60 + window.state.ROWS - 1;
+  return maxMidi - midiNote;
+}
 
 // Initialize the application
 function initApp() {
@@ -67,6 +80,11 @@ function initApp() {
   
   // Load a demo pattern
   loadDemoPattern();
+  
+  // Update position readout
+  if (typeof window.updatePositionReadout === 'function') {
+    window.updatePositionReadout();
+  }
   
   // Set up keyboard shortcuts
   setupKeyboardShortcuts();
@@ -169,7 +187,33 @@ function setupUIListeners() {
   if (randomBtn) {
     randomBtn.addEventListener('click', randomPattern);
   }
-  
+
+  // Zoom out button
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  if (zoomOutBtn) {
+    zoomOutBtn.addEventListener('click', () => {
+      window.state.zoom = Math.max(12, window.state.zoom - 4);
+      resizeCanvas();
+    });
+  }
+
+  // Zoom in button
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  if (zoomInBtn) {
+    zoomInBtn.addEventListener('click', () => {
+      window.state.zoom = Math.min(64, window.state.zoom + 4);
+      resizeCanvas();
+    });
+  }
+
+  // Follow toggle
+  const followBtn = document.getElementById('followBtn');
+  if (followBtn) {
+    followBtn.addEventListener('change', (e) => {
+      window.state.follow = e.target.checked;
+    });
+  }
+
   // Volume slider
   const volumeSlider = document.getElementById('volumeSlider');
   const volumeValue = document.getElementById('volumeValue');
@@ -263,33 +307,39 @@ function renderKeyboardMap() {
   const container = document.getElementById('keyboardMap');
   if (!container || !window.state) return;
 
-  // Build reverse map: row -> keyboard key
-  const rowToKey = {};
-  for (const [key, row] of Object.entries(keyMap)) {
-    rowToKey[row] = key;
-  }
+  const maxMidi = 60 + window.state.ROWS - 1;
 
   container.innerHTML = '';
 
   const hint = document.createElement('p');
   hint.className = 'keyboard-hint-text';
-  hint.textContent = 'Press a key to play the corresponding note (all 24 notes C4–B5 are mapped).';
+  const octaveText = keyboardOctaveShift !== 0 ? ` (octave ${keyboardOctaveShift > 0 ? '+' : ''}${keyboardOctaveShift})` : '';
+  hint.textContent = 'Press a key to play the corresponding note' + octaveText + '.';
   container.appendChild(hint);
 
   const mapWrap = document.createElement('div');
   mapWrap.className = 'keyboard-keys';
 
   for (let row = 0; row < window.state.ROWS; row++) {
-    const key = rowToKey[row];
+    // Find which key maps to this row
+    let keyForRow = null;
+    for (const [key, midiNote] of Object.entries(keyMap)) {
+      const adjustedMidi = midiNote + keyboardOctaveShift * 12;
+      const r = maxMidi - adjustedMidi;
+      if (r === row) {
+        keyForRow = key;
+        break;
+      }
+    }
     const noteName = window.state.noteNames[row];
-    const isPlayable = key !== undefined;
+    const isPlayable = keyForRow !== null;
 
     const keyEl = document.createElement('div');
     keyEl.className = 'key ' + (isPlayable ? 'playable' : 'unplayable');
     keyEl.title = noteName;
 
     const kbd = document.createElement('kbd');
-    kbd.textContent = isPlayable ? key : '—';
+    kbd.textContent = isPlayable ? keyForRow : '—';
     keyEl.appendChild(kbd);
 
     const note = document.createElement('span');
@@ -323,14 +373,39 @@ function setupKeyboardShortcuts() {
       e.preventDefault();
       clearGrid();
     }
-    // Keyboard keys to play notes (white keys only) and toggle grid cell
+    // Z: shift keyboard octave down
+    if (e.key === 'z' || e.key === 'Z') {
+      e.preventDefault();
+      keyboardOctaveShift = Math.max(-2, keyboardOctaveShift - 1);
+      renderKeyboardMap();
+    }
+    // X: shift keyboard octave up
+    if (e.key === 'x' || e.key === 'X') {
+      e.preventDefault();
+      keyboardOctaveShift = Math.min(2, keyboardOctaveShift + 1);
+      renderKeyboardMap();
+    }
+    // Keyboard keys to play notes
     if (e.key in keyMap) {
       e.preventDefault();
-      const row = keyMap[e.key];
-      // Play the note, flash key, and toggle grid cell at current step via piano.js function
-      window.playPianoKey(row);
+      const midiNote = keyMap[e.key] + keyboardOctaveShift * 12;
+      const row = midiToRow(midiNote);
+      if (row >= 0 && row < window.state.ROWS) {
+        // Play the note, flash key, and toggle grid cell at current step via piano.js function
+        window.playPianoKey(row);
+      }
     }
   });
+
+  // Ctrl/Cmd + mouse wheel for zoom
+  document.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -4 : 4;
+      window.state.zoom = Math.max(12, Math.min(64, window.state.zoom + delta));
+      resizeCanvas();
+    }
+  }, { passive: false });
 }
 
 // Start the app when the DOM is loaded
