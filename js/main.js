@@ -91,6 +91,9 @@ function initApp() {
   // Initialize dock
   initDock();
 
+  // Initialize more menu
+  initMoreMenu();
+
   // Initialize export
   initExport();
   
@@ -695,11 +698,12 @@ window.initDock = function () {
       content.style.display = 'none';
       dock.style.height = '36px';
       toggle.textContent = '▸ Sound / Keyboard';
-    } else {
-      content.style.display = '';
-      dock.style.height = '';
-      toggle.textContent = '▾ Sound / Keyboard';
-    }
+     } else {
+       content.style.display = '';
+       dock.style.height = '';
+       toggle.textContent = '▾ Sound / Keyboard';
+       if (typeof window.drawEnvelope === 'function') window.drawEnvelope();
+     }
   }
 
   setCollapsed(collapsed);
@@ -716,10 +720,52 @@ window.initDock = function () {
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       tabs.forEach(t => t.classList.remove('active'));
-      panels.forEach(p => p.classList.remove('active'));
+      panels.forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
       tab.classList.add('active');
-      const panel = document.getElementById('dock' + tab.dataset.tab);
-      if (panel) panel.classList.add('active');
+      const name = tab.dataset.tab;
+      const panel = document.getElementById('dock' + name.charAt(0).toUpperCase() + name.slice(1));
+      if (!panel) return;
+      panel.classList.remove('hidden');
+      panel.classList.add('active');
+      if (typeof window.drawEnvelope === 'function') window.drawEnvelope();
     });
+  });
+};
+
+window.initMoreMenu = function () {
+  const btn = document.getElementById('moreBtn');
+  const pop = document.getElementById('morePopover');
+  if (!btn || !pop) return;
+
+  function setOpen(open) {
+    pop.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  setOpen(false);
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setOpen(pop.hidden);
+  });
+
+  pop.addEventListener('click', (e) => {
+    if (e.target && e.target.closest && e.target.closest('button')) {
+      setOpen(false);
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (pop.hidden) return;
+    if (pop.contains(e.target)) return;
+    setOpen(false);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !pop.hidden) setOpen(false);
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 640 && !pop.hidden) setOpen(false);
   });
 };

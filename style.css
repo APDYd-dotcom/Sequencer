@@ -140,6 +140,7 @@ body {
 
 .toolbar .t-more {
     margin-left: 8px;
+    display: none;
 }
 
 .t-value {
@@ -234,6 +235,9 @@ body {
     gap: 6px;
     z-index: 50;
     box-shadow: 0 -2px 10px rgba(60,64,67,0.2);
+}
+.more-popover[hidden] {
+    display: none;
 }
 .more-popover button {
     width: 100%;
