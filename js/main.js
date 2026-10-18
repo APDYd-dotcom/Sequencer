@@ -77,8 +77,10 @@ function initApp() {
   // Initialize export
   initExport();
   
-  // Load a demo pattern
-  loadDemoPattern();
+  // Load autosave if available, otherwise load demo pattern
+  if (!window.loadSongFromStorage()) {
+    loadDemoPattern();
+  }
   
   // Update position readout
   if (typeof window.updatePositionReadout === 'function') {
@@ -241,6 +243,51 @@ function setupUIListeners() {
   const pasteBarBtn = document.getElementById('pasteBarBtn');
   if (pasteBarBtn) {
     pasteBarBtn.addEventListener('click', pasteBar);
+  }
+
+  // New song
+  const newSongBtn = document.getElementById('newSongBtn');
+  if (newSongBtn) {
+    newSongBtn.addEventListener('click', () => {
+      const hasNotes = window.state.grid.some(row => row.some(cell => cell));
+      if (hasNotes) {
+        if (!confirm('Start a new song? Unsaved changes will be lost.')) return;
+      }
+      window.state.grid = Array.from({ length: window.state.ROWS }, () =>
+        Array.from({ length: window.state.COLS }, () => false));
+      window.state.playStep = 0;
+      window.state.startStep = 0;
+      window.state.cacheDirty = true;
+      window.state.undoStack = [];
+      window.state.redoStack = [];
+      window.drawGrid();
+      window.drawOverview();
+      window.updatePositionReadout();
+      loadTimbrePreset('piano');
+      document.getElementById('waveformSelect').value = 'piano';
+    });
+  }
+
+  // Save song
+  const saveSongBtn = document.getElementById('saveSongBtn');
+  if (saveSongBtn) {
+    saveSongBtn.addEventListener('click', saveSong);
+  }
+
+  // Open song
+  const openSongBtn = document.getElementById('openSongBtn');
+  const openSongInput = document.getElementById('openSongInput');
+  if (openSongBtn) {
+    openSongBtn.addEventListener('click', () => {
+      openSongInput.click();
+    });
+  }
+  if (openSongInput) {
+    openSongInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) openSong(file);
+      e.target.value = '';
+    });
   }
 
   // Zoom out button
@@ -472,6 +519,17 @@ function setupKeyboardShortcuts() {
       window.drawGrid();
       window.drawOverview();
       window.updatePositionReadout();
+    }
+    // Ctrl/Cmd + Z: undo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+    }
+    // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y: redo
+    if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z') ||
+        ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
+      e.preventDefault();
+      redo();
     }
   });
 

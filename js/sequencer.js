@@ -74,6 +74,12 @@ const state = {
 
   // Paint state (fix flicker bug)
   paintValue: null,
+
+  // Undo/redo history
+  undoStack: [],
+  redoStack: [],
+  undoMax: 50,
+  undoSnapshot: null, // current snapshot being edited
 };
 
 // Initialize note arrays from MIDI 36 (C2) to 95 (B6)
@@ -602,6 +608,9 @@ function handlePointerDown(e) {
     }
   }
 
+  // Begin undo snapshot for this edit action
+  beginEdit();
+
   state.drag = {
     zone,
     subZone,
@@ -729,6 +738,8 @@ function handlePointerUp(e) {
   }
 
   state.drag = null;
+  endEdit();
+  debouncedAutosave();
   drawGrid();
 }
 
@@ -779,18 +790,24 @@ function setBpm(bpm) {
 
 // Clear the grid
 function clearGrid() {
+  beginEdit();
   state.grid = Array.from({ length: state.ROWS }, () =>
     Array.from({ length: state.COLS }, () => false));
   state.cacheDirty = true;
   drawGrid();
+  endEdit();
+  debouncedAutosave();
 }
 
 // Generate a random pattern (about 10% chance per cell)
 function randomPattern() {
+  beginEdit();
   state.grid = Array.from({ length: state.ROWS }, () =>
     Array.from({ length: state.COLS }, () => Math.random() > 0.9));
   state.cacheDirty = true;
   drawGrid();
+  endEdit();
+  debouncedAutosave();
 }
 
 // Get the current bar index from startStep
@@ -800,6 +817,7 @@ function currentBar() {
 
 // Set number of bars; growing keeps notes, shrinking asks confirm if notes lost
 function setBars(nb) {
+  beginEdit();
   nb = Math.max(1, Math.min(128, parseInt(nb)));
   if (nb === state.bars) return;
 
@@ -855,12 +873,16 @@ function setBars(nb) {
   }
 
   resizeCanvas();
+  drawGrid();
   drawOverview();
   updatePositionReadout();
+  endEdit();
+  debouncedAutosave();
 }
 
 // Duplicate current bar to the next bar
 function duplicateBar() {
+  beginEdit();
   const bar = currentBar();
   if (bar >= state.bars - 1) {
     // Add a bar if it's the last one
@@ -878,10 +900,13 @@ function duplicateBar() {
   state.cacheDirty = true;
   drawGrid();
   drawOverview();
+  endEdit();
+  debouncedAutosave();
 }
 
 // Clear current bar
 function clearBar() {
+  beginEdit();
   const bar = currentBar();
   const start = bar * state.STEPS_PER_BAR;
   const end = Math.min(start + state.STEPS_PER_BAR, state.COLS);
@@ -893,10 +918,13 @@ function clearBar() {
   state.cacheDirty = true;
   drawGrid();
   drawOverview();
+  endEdit();
+  debouncedAutosave();
 }
 
 // Copy current bar to clipboard
 function copyBar() {
+  beginEdit();
   const bar = currentBar();
   const start = bar * state.STEPS_PER_BAR;
   const end = Math.min(start + state.STEPS_PER_BAR, state.COLS);
@@ -909,10 +937,12 @@ function copyBar() {
     barData.push(rowData);
   }
   state.clipboardBar = barData;
+  endEdit();
 }
 
 // Paste clipboard to current bar
 function pasteBar() {
+  beginEdit();
   if (!state.clipboardBar) return;
   const bar = currentBar();
   const start = bar * state.STEPS_PER_BAR;
@@ -927,7 +957,289 @@ function pasteBar() {
   drawOverview();
 }
 
-// Draw the overview strip (whole song density + viewport + playhead)
+// ---- Undo/Redo ----
+
+// Save a snapshot to undo history (called at start of an action)
+function undoSaveSnapshot() {
+  const snapshot = {
+    grid: state.grid.map(row => [...row]),
+    playStep: state.playStep,
+    startStep: state.startStep,
+    loopStart: state.loopStart,
+    loopEnd: state.loopEnd,
+    loopOn: state.loopOn,
+    bars: state.bars,
+  };
+  state.undoStack.push(snapshot);
+  if (state.undoStack.length > state.undoMax) {
+    state.undoStack.shift();
+  }
+  state.redoStack = [];
+}
+
+// Undo the last action
+function undo() {
+  if (state.undoStack.length === 0) return;
+  // Save current state to redo stack
+  const current = {
+    grid: state.grid.map(row => [...row]),
+    playStep: state.playStep,
+    startStep: state.startStep,
+    loopStart: state.loopStart,
+    loopEnd: state.loopEnd,
+    loopOn: state.loopOn,
+    bars: state.bars,
+  };
+  state.redoStack.push(current);
+
+  const prev = state.undoStack.pop();
+  state.grid = prev.grid.map(row => [...row]);
+  state.playStep = prev.playStep;
+  state.startStep = prev.startStep;
+  state.loopStart = prev.loopStart;
+  state.loopEnd = prev.loopEnd;
+  state.loopOn = prev.loopOn;
+  state.bars = prev.bars;
+  state.COLS = state.bars * state.STEPS_PER_BAR;
+  state.cacheDirty = true;
+  resizeCanvas();
+  drawGrid();
+  drawOverview();
+  updatePositionReadout();
+}
+
+// Redo the last undone action
+function redo() {
+  if (state.redoStack.length === 0) return;
+  const current = {
+    grid: state.grid.map(row => [...row]),
+    playStep: state.playStep,
+    startStep: state.startStep,
+    loopStart: state.loopStart,
+    loopEnd: state.loopEnd,
+    loopOn: state.loopOn,
+    bars: state.bars,
+  };
+  state.undoStack.push(current);
+
+  const next = state.redoStack.pop();
+  state.grid = next.grid.map(row => [...row]);
+  state.playStep = next.playStep;
+  state.startStep = next.startStep;
+  state.loopStart = next.loopStart;
+  state.loopEnd = next.loopEnd;
+  state.loopOn = next.loopOn;
+  state.bars = next.bars;
+  state.COLS = state.bars * state.STEPS_PER_BAR;
+  state.cacheDirty = true;
+  resizeCanvas();
+  drawGrid();
+  drawOverview();
+  updatePositionReadout();
+}
+
+// Mark that an edit action has started (for undo grouping)
+function beginEdit() {
+  state.undoSnapshot = {
+    grid: state.grid.map(row => [...row]),
+  };
+}
+
+// Mark that an edit action has finished (save to undo history)
+function endEdit() {
+  if (!state.undoSnapshot) return;
+  // Check if grid actually changed
+  let changed = false;
+  for (let row = 0; row < state.ROWS && !changed; row++) {
+    for (let col = 0; col < state.COLS && !changed; col++) {
+      if (state.grid[row][col] !== state.undoSnapshot.grid[row][col]) {
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    undoSaveSnapshot();
+  }
+  state.undoSnapshot = null;
+}
+
+// ---- Save/Load Song ----
+
+function serializeSong() {
+  const notes = [];
+  for (let row = 0; row < state.ROWS; row++) {
+    for (let col = 0; col < state.COLS; col++) {
+      if (state.grid[row][col]) {
+        notes.push([row, col]);
+      }
+    }
+  }
+  const release = parseFloat(document.getElementById('releaseSlider').value) || 0;
+  const decay = parseFloat(document.getElementById('decaySlider').value) || 0;
+  const sustain = parseFloat(document.getElementById('sustainSlider').value) || 0;
+  const attack = parseFloat(document.getElementById('attackSlider').value) || 0;
+  const volume = parseFloat(document.getElementById('volumeSlider').value) || 0.8;
+  const timbre = document.getElementById('waveformSelect').value;
+  return {
+    version: 1,
+    bpm: state.bpm,
+    bars: state.bars,
+    timbre: timbre,
+    adsr: { attack, decay, sustain, release },
+    volume: volume,
+    loop: { on: state.loopOn, start: state.loopStart, end: state.loopEnd },
+    notes: notes,
+  };
+}
+
+function deserializeSong(data) {
+  if (!data || data.version !== 1) {
+    throw new Error('Invalid song file format');
+  }
+  // Validate bars
+  if (!data.bars || data.bars < 1 || data.bars > 128) {
+    throw new Error('Invalid bars value');
+  }
+  // Validate notes
+  if (!Array.isArray(data.notes)) {
+    throw new Error('Invalid notes format');
+  }
+
+  state.bars = data.bars;
+  state.COLS = state.bars * state.STEPS_PER_BAR;
+  state.bpm = data.bpm || 100;
+
+  // Clear grid
+  state.grid = Array.from({ length: state.ROWS }, () =>
+    Array.from({ length: state.COLS }, () => false));
+
+  // Set notes
+  for (const [row, col] of data.notes) {
+    if (row >= 0 && row < state.ROWS && col >= 0 && col < state.COLS) {
+      state.grid[row][col] = true;
+    }
+  }
+
+  // Set loop
+  if (data.loop) {
+    state.loopOn = data.loop.on !== false;
+    state.loopStart = Math.max(0, Math.min(data.loop.start || 0, state.COLS - 1));
+    state.loopEnd = Math.max(0, Math.min(data.loop.end || state.COLS - 1, state.COLS - 1));
+    if (state.loopStart > state.loopEnd) {
+      state.loopStart = 0;
+      state.loopEnd = state.COLS - 1;
+    }
+  }
+
+  // Set play/start step
+  state.startStep = 0;
+  state.playStep = 0;
+
+  // Update UI controls
+  document.getElementById('bpmSlider').value = state.bpm;
+  document.getElementById('bpmValue').textContent = state.bpm;
+  document.getElementById('barsInput').value = state.bars;
+  if (data.adsr) {
+    document.getElementById('attackSlider').value = data.adsr.attack;
+    document.getElementById('attackValue').textContent = data.adsr.attack;
+    document.getElementById('decaySlider').value = data.adsr.decay;
+    document.getElementById('decayValue').textContent = data.adsr.decay;
+    document.getElementById('sustainSlider').value = data.adsr.sustain;
+    document.getElementById('sustainValue').textContent = data.adsr.sustain;
+    document.getElementById('releaseSlider').value = data.adsr.release;
+    document.getElementById('releaseValue').textContent = data.adsr.release;
+  }
+  if (data.volume !== undefined) {
+    document.getElementById('volumeSlider').value = data.volume;
+    document.getElementById('volumeValue').textContent = data.volume;
+    setMasterVolume(data.volume);
+  }
+  if (data.timbre) {
+    document.getElementById('waveformSelect').value = data.timbre;
+    loadTimbrePreset(data.timbre);
+  }
+
+  state.cacheDirty = true;
+  resizeCanvas();
+  drawGrid();
+  drawOverview();
+  updatePositionReadout();
+}
+
+function saveSong() {
+  const song = serializeSong();
+  const blob = new Blob([JSON.stringify(song, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sequencer-${state.bpm}bpm-song.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function openSong(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      deserializeSong(data);
+    } catch (err) {
+      alert('Failed to open song: ' + err.message);
+    }
+  };
+  reader.onerror = () => {
+    alert('Failed to read file.');
+  };
+  reader.readAsText(file);
+}
+
+function loadSongFromStorage() {
+  try {
+    const stored = localStorage.getItem('sequencer-song');
+    if (stored) {
+      const data = JSON.parse(stored);
+      deserializeSong(data);
+      return true;
+    }
+  } catch (err) {
+    console.error('Autosave load failed:', err);
+  }
+  return false;
+}
+
+function saveSongToStorage() {
+  try {
+    const song = serializeSong();
+    localStorage.setItem('sequencer-song', JSON.stringify(song));
+  } catch (err) {
+    console.error('Autosave save failed:', err);
+  }
+}
+
+let autosaveTimeout = null;
+function debouncedAutosave() {
+  if (autosaveTimeout) clearTimeout(autosaveTimeout);
+  autosaveTimeout = setTimeout(() => {
+    saveSongToStorage();
+    autosaveTimeout = null;
+  }, 500);
+}
+
+// Expose undo/redo/save/load functions
+window.undo = undo;
+window.redo = redo;
+window.beginEdit = beginEdit;
+window.endEdit = endEdit;
+window.saveSong = saveSong;
+window.openSong = openSong;
+window.loadSongFromStorage = loadSongFromStorage;
+window.saveSongToStorage = saveSongToStorage;
+window.debouncedAutosave = debouncedAutosave;
+window.serializeSong = serializeSong;
+
+// ... existing exposes
 function drawOverview() {
   const canvas = document.getElementById('overviewCanvas');
   if (!canvas) return;
