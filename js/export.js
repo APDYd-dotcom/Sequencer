@@ -151,23 +151,22 @@ async function encodeMp3(left, right, sampleRate, kbps, onProgress) {
   let blockCount = 0;
 
   while (offset < totalSamples) {
-    const leftChunk = left.subarray(offset, offset + samplesPerFrame);
-    const rightChunk = right.subarray(offset, offset + samplesPerFrame);
+    const end = Math.min(offset + samplesPerFrame, totalSamples);
+    const chunkLen = end - offset;
 
-    // Pad last block if needed
-    if (leftChunk.length < samplesPerFrame) {
-      const paddedLeft = new Int16Array(samplesPerFrame);
-      const paddedRight = new Int16Array(samplesPerFrame);
-      paddedLeft.set(leftChunk);
-      paddedRight.set(rightChunk);
-      const encoded = encoder.encodeBuffer(paddedLeft, paddedRight);
-      if (encoded.length > 0) chunks.push(encoded);
-    } else {
-      const encoded = encoder.encodeBuffer(leftChunk, rightChunk);
-      if (encoded.length > 0) chunks.push(encoded);
+    // Convert Float32 to Int16 for lamejs
+    const left16 = new Int16Array(samplesPerFrame);
+    const right16 = new Int16Array(samplesPerFrame);
+    for (let i = 0; i < chunkLen; i++) {
+      left16[i] = clampSample(left[offset + i]) * 32767;
+      right16[i] = clampSample(right[offset + i]) * 32767;
     }
+    // Rest of the frame stays zero (silent padding for the last block)
 
-    offset += samplesPerFrame;
+    const encoded = encoder.encodeBuffer(left16, right16);
+    if (encoded.length > 0) chunks.push(encoded);
+
+    offset = end;
     blockCount++;
 
     if (onProgress && blockCount % 100 === 0) {
