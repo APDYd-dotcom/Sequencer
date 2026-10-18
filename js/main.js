@@ -2,7 +2,7 @@
 let isInitialized = false;
 
 // Keyboard mapping as MIDI note numbers (not row indexes)
-// Row index = 83 - midiNote (row 0 = B5/MIDI 83, row 23 = C4/MIDI 60)
+// Row index = 95 - midiNote (row 0 = B6/MIDI 95, row 59 = C2/MIDI 36)
 const keyMap = {
   // White keys
   'a': 60,  // C4
@@ -409,7 +409,7 @@ function renderKeyboardMap() {
   const container = document.getElementById('keyboardMap');
   if (!container || !window.state) return;
 
-  const maxMidi = 60 + window.state.ROWS - 1;
+  const maxMidi = 36 + window.state.ROWS - 1;
 
   container.innerHTML = '';
 
