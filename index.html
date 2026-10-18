@@ -29,7 +29,19 @@
                 <button id="zoomOutBtn" class="button outline">-</button>
                 <button id="zoomInBtn" class="button outline">+</button>
                 <label class="follow-label"><input type="checkbox" id="followBtn" checked> Follow</label>
+                <div class="bars-control">
+                    <label for="barsInput">Bars:</label>
+                    <button id="barsMinusBtn" class="button outline">-</button>
+                    <input type="number" id="barsInput" min="1" max="128" value="8" style="width:40px">
+                    <button id="barsPlusBtn" class="button outline">+</button>
+                </div>
                 <div id="positionReadout" class="position-readout">Bar 1 - Beat 1   00:00.0 / 00:00.0</div>
+                <div class="bar-tools">
+                    <button id="duplicateBarBtn" class="button outline">Duplicate Bar</button>
+                    <button id="clearBarBtn" class="button outline">Clear Bar</button>
+                    <button id="copyBarBtn" class="button outline">Copy Bar</button>
+                    <button id="pasteBarBtn" class="button outline">Paste Bar</button>
+                </div>
                 <button id="clearBtn" class="button outline">Clear</button>
                 <button id="randomBtn" class="button outline">Random</button>
                 <button id="exportBtn" class="button outline">Export</button>
@@ -68,6 +80,7 @@
 
         <section class="card grid-card">
             <h2>Sequencer Grid</h2>
+            <canvas id="overviewCanvas" class="overview-strip"></canvas>
             <div class="roll" id="gridScroller">
                 <div class="gridSpacer"></div>
                 <canvas id="pianoCanvas"></canvas>

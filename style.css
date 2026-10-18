@@ -462,6 +462,53 @@ input[type="range"]::-moz-range-thumb {
     margin-left: 16px;
 }
 
+/* Bars control */
+.bars-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-color);
+    margin-left: 12px;
+}
+.bars-control label {
+    font-size: 12px;
+    font-weight: 500;
+}
+.bars-control input[type="number"] {
+    width: 40px;
+    padding: 4px;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+/* Bar tools */
+.bar-tools {
+    display: flex;
+    gap: 6px;
+    margin-left: 12px;
+}
+.bar-tools .button {
+    font-size: 12px;
+    padding: 6px 10px;
+}
+
+/* Overview strip */
+.overview-strip {
+    display: block;
+    width: 100%;
+    height: 36px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px 8px 0 0;
+    border-bottom: none;
+    margin-bottom: -1px;
+    cursor: pointer;
+}
+
 /* Follow label */
 .follow-label {
     font-size: 13px;

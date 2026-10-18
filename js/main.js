@@ -187,6 +187,62 @@ function setupUIListeners() {
     randomBtn.addEventListener('click', randomPattern);
   }
 
+  // Bars minus
+  const barsMinusBtn = document.getElementById('barsMinusBtn');
+  if (barsMinusBtn) {
+    barsMinusBtn.addEventListener('click', () => {
+      const input = document.getElementById('barsInput');
+      const val = Math.max(1, parseInt(input.value || '8') - 1);
+      input.value = val;
+      setBars(val);
+    });
+  }
+
+  // Bars plus
+  const barsPlusBtn = document.getElementById('barsPlusBtn');
+  if (barsPlusBtn) {
+    barsPlusBtn.addEventListener('click', () => {
+      const input = document.getElementById('barsInput');
+      const val = Math.min(128, parseInt(input.value || '8') + 1);
+      input.value = val;
+      setBars(val);
+    });
+  }
+
+  // Bars input change
+  const barsInput = document.getElementById('barsInput');
+  if (barsInput) {
+    barsInput.addEventListener('change', () => {
+      const val = Math.max(1, Math.min(128, parseInt(barsInput.value || '8')));
+      barsInput.value = val;
+      setBars(val);
+    });
+  }
+
+  // Duplicate bar
+  const duplicateBarBtn = document.getElementById('duplicateBarBtn');
+  if (duplicateBarBtn) {
+    duplicateBarBtn.addEventListener('click', duplicateBar);
+  }
+
+  // Clear bar
+  const clearBarBtn = document.getElementById('clearBarBtn');
+  if (clearBarBtn) {
+    clearBarBtn.addEventListener('click', clearBar);
+  }
+
+  // Copy bar
+  const copyBarBtn = document.getElementById('copyBarBtn');
+  if (copyBarBtn) {
+    copyBarBtn.addEventListener('click', copyBar);
+  }
+
+  // Paste bar
+  const pasteBarBtn = document.getElementById('pasteBarBtn');
+  if (pasteBarBtn) {
+    pasteBarBtn.addEventListener('click', pasteBar);
+  }
+
   // Zoom out button
   const zoomOutBtn = document.getElementById('zoomOutBtn');
   if (zoomOutBtn) {
@@ -393,6 +449,29 @@ function setupKeyboardShortcuts() {
         // Play the note, flash key, and toggle grid cell at current step via piano.js function
         window.playPianoKey(row);
       }
+    }
+    // Ctrl/Cmd + D: duplicate bar
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+      e.preventDefault();
+      duplicateBar();
+    }
+    // Home: go to start of song
+    if (e.key === 'Home') {
+      e.preventDefault();
+      window.state.startStep = 0;
+      window.state.playStep = 0;
+      window.drawGrid();
+      window.drawOverview();
+      window.updatePositionReadout();
+    }
+    // End: go to end of song
+    if (e.key === 'End') {
+      e.preventDefault();
+      window.state.startStep = window.state.COLS - 1;
+      window.state.playStep = window.state.COLS - 1;
+      window.drawGrid();
+      window.drawOverview();
+      window.updatePositionReadout();
     }
   });
 

@@ -7,6 +7,13 @@ const state = {
   ROWS: 60,            // C2 to B6 (five octaves, MIDI 36-95)
   ROW_HEIGHT: 20,      // pixels per row (logical, not device pixels)
 
+  // Clipboard for copy/paste bar
+  clipboardBar: null,
+
+  // Overview strip
+  overviewCanvas: null,
+  overviewCtx: null,
+
   // Zoom / scroll state
   zoom: 28,            // cell width in px (range 12-64)
   scrollX: 0,
@@ -194,6 +201,7 @@ function resizeCanvas() {
   }
 
   drawGrid();
+  drawOverview();
 
   // Set up scroll listener
   scroller.removeEventListener('scroll', handleScrollerScroll);
@@ -221,6 +229,7 @@ function handleScrollerScroll(e) {
   state.scrollX = scroller.scrollLeft;
   state.scrollY = scroller.scrollTop;
   drawGrid();
+  drawOverview();
 }
 
 // Clamp a column index to 0..COLS-1 so drags still work off-canvas
@@ -784,7 +793,205 @@ function randomPattern() {
   drawGrid();
 }
 
-// The scheduler: called periodically to check if we need to play notes
+// Get the current bar index from startStep
+function currentBar() {
+  return Math.floor(state.startStep / state.STEPS_PER_BAR);
+}
+
+// Set number of bars; growing keeps notes, shrinking asks confirm if notes lost
+function setBars(nb) {
+  nb = Math.max(1, Math.min(128, parseInt(nb)));
+  if (nb === state.bars) return;
+
+  const oldCols = state.COLS;
+  const oldBars = state.bars;
+
+  // Check if shrinking would lose notes
+  if (nb < oldBars) {
+    const stepsToKeep = nb * state.STEPS_PER_BAR;
+    let hasNotes = false;
+    for (let row = 0; row < state.ROWS && !hasNotes; row++) {
+      for (let col = stepsToKeep; col < oldCols && !hasNotes; col++) {
+        if (state.grid[row][col]) hasNotes = true;
+      }
+    }
+    if (hasNotes) {
+      if (!confirm('Shrinking will delete notes beyond bar ' + nb + '. Continue?')) {
+        return;
+      }
+    }
+  }
+
+  state.bars = nb;
+  state.COLS = state.bars * state.STEPS_PER_BAR;
+
+  // Clamp loop region
+  state.loopStart = Math.min(state.loopStart, state.COLS - 1);
+  state.loopEnd = Math.min(state.loopEnd, state.COLS - 1);
+  if (state.loopStart > state.loopEnd) {
+    state.loopStart = 0;
+    state.loopEnd = state.COLS - 1;
+  }
+
+  // Clamp startStep/playStep
+  state.startStep = Math.min(state.startStep, state.COLS - 1);
+  state.playStep = Math.min(state.playStep, state.COLS - 1);
+
+  // Rebuild grid
+  const newGrid = Array.from({ length: state.ROWS }, () =>
+    Array.from({ length: state.COLS }, () => false));
+  const copyCols = Math.min(oldCols, state.COLS);
+  for (let row = 0; row < state.ROWS; row++) {
+    for (let col = 0; col < copyCols; col++) {
+      newGrid[row][col] = state.grid[row][col];
+    }
+  }
+  state.grid = newGrid;
+  state.cacheDirty = true;
+
+  // If loop covered whole song before, keep it covering whole song
+  if (state.loopOn && state.loopStart === 0 && state.loopEnd === oldCols - 1) {
+    state.loopEnd = state.COLS - 1;
+  }
+
+  resizeCanvas();
+  drawOverview();
+  updatePositionReadout();
+}
+
+// Duplicate current bar to the next bar
+function duplicateBar() {
+  const bar = currentBar();
+  if (bar >= state.bars - 1) {
+    // Add a bar if it's the last one
+    setBars(state.bars + 1);
+  }
+  const srcStart = bar * state.STEPS_PER_BAR;
+  const dstStart = (bar + 1) * state.STEPS_PER_BAR;
+  if (dstStart >= state.COLS) return;
+
+  for (let row = 0; row < state.ROWS; row++) {
+    for (let i = 0; i < state.STEPS_PER_BAR; i++) {
+      state.grid[row][dstStart + i] = state.grid[row][srcStart + i];
+    }
+  }
+  state.cacheDirty = true;
+  drawGrid();
+  drawOverview();
+}
+
+// Clear current bar
+function clearBar() {
+  const bar = currentBar();
+  const start = bar * state.STEPS_PER_BAR;
+  const end = Math.min(start + state.STEPS_PER_BAR, state.COLS);
+  for (let row = 0; row < state.ROWS; row++) {
+    for (let col = start; col < end; col++) {
+      state.grid[row][col] = false;
+    }
+  }
+  state.cacheDirty = true;
+  drawGrid();
+  drawOverview();
+}
+
+// Copy current bar to clipboard
+function copyBar() {
+  const bar = currentBar();
+  const start = bar * state.STEPS_PER_BAR;
+  const end = Math.min(start + state.STEPS_PER_BAR, state.COLS);
+  const barData = [];
+  for (let row = 0; row < state.ROWS; row++) {
+    const rowData = [];
+    for (let col = start; col < end; col++) {
+      rowData.push(state.grid[row][col] ? 1 : 0);
+    }
+    barData.push(rowData);
+  }
+  state.clipboardBar = barData;
+}
+
+// Paste clipboard to current bar
+function pasteBar() {
+  if (!state.clipboardBar) return;
+  const bar = currentBar();
+  const start = bar * state.STEPS_PER_BAR;
+  const end = Math.min(start + state.clipboardBar[0].length, state.COLS);
+  for (let row = 0; row < state.ROWS && row < state.clipboardBar.length; row++) {
+    for (let i = start; i < end; i++) {
+      state.grid[row][i] = state.clipboardBar[row][i - start] === 1;
+    }
+  }
+  state.cacheDirty = true;
+  drawGrid();
+  drawOverview();
+}
+
+// Draw the overview strip (whole song density + viewport + playhead)
+function drawOverview() {
+  const canvas = document.getElementById('overviewCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio;
+  const vw = document.getElementById('gridScroller').clientWidth;
+  canvas.width = vw * dpr;
+  canvas.height = 36 * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = vw;
+  const h = 36;
+
+  ctx.fillStyle = '#f8f9fa';
+  ctx.fillRect(0, 0, w, h);
+
+  const fullWidth = state.COLS * state.cellWidth;
+  const scale = w / fullWidth;
+
+  // Draw note density per step
+  for (let col = 0; col < state.COLS; col++) {
+    let count = 0;
+    for (let row = 0; row < state.ROWS; row++) {
+      if (state.grid[row][col]) count++;
+    }
+    if (count > 0) {
+      const intensity = Math.min(1, count / 6);
+      ctx.fillStyle = `rgba(26, 115, 232, ${0.2 + 0.6 * intensity})`;
+      const x = col * state.cellWidth * scale;
+      const barWidth = Math.max(1, state.cellWidth * scale);
+      ctx.fillRect(x, h - 6 * intensity, barWidth, 6 * intensity);
+    }
+  }
+
+  // Draw viewport rectangle
+  const scroller = document.getElementById('gridScroller');
+  const scrollX = state.scrollX;
+  const vwGrid = scroller ? scroller.clientWidth - 72 : w;
+  const viewLeft = scrollX * scale;
+  const viewWidth = vwGrid * scale;
+  ctx.strokeStyle = '#1a73e8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(viewLeft, 4, viewWidth, h - 8);
+
+  // Draw playhead
+  const px = state.playStep * state.cellWidth * scale;
+  ctx.fillStyle = '#1a73e8';
+  ctx.fillRect(px, 0, 2, h);
+
+  // Border
+  ctx.strokeStyle = '#dadce0';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, 0, w, h);
+}
+
+// Expose bar functions
+window.setBars = setBars;
+window.duplicateBar = duplicateBar;
+window.clearBar = clearBar;
+window.copyBar = copyBar;
+window.pasteBar = pasteBar;
+window.drawOverview = drawOverview;
+window.currentBar = currentBar;
+
+// ... existing exposes
 function scheduler() {
   const currentTime = audioContext.currentTime;
   const lookahead = state.scheduleAheadTime; // how far ahead to schedule
@@ -837,6 +1044,7 @@ function animatePlayhead() {
   if (!state.isPlaying) return;
 
   drawGrid();
+  drawOverview();
 
   // Follow playhead: auto-scroll when playhead leaves visible area
   if (state.follow) {
