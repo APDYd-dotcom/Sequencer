@@ -1,7 +1,7 @@
 :root {
     --bg-color: #f8f9fa;
     --card-bg: #ffffff;
-    --card-radius: 12px;
+    --card-radius: 8px;
     --card-shadow: 0 1px 3px rgba(60,64,67,.3);
     --primary-color: #1a73e8;
     --red-color: #ea4335;
@@ -10,13 +10,21 @@
     --text-color: #202124;
     --secondary-text: #5f6368;
     --border-color: #dadce0;
-    --header-height: 56px;
+    --header-height: 44px;
+    --toolbar-height: 48px;
+    --dock-height: 140px;
 }
 
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden; /* no page scrollbars at any size */
 }
 
 body {
@@ -26,25 +34,35 @@ body {
     line-height: 1.5;
 }
 
+/* One-screen app: header + body, fills the viewport */
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    height: 100vh; /* fallback */
+}
+
+/* Slim header */
 .app-bar {
     background-color: white;
     height: var(--header-height);
     display: flex;
     align-items: center;
     border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
 .app-bar-content {
     display: flex;
     align-items: center;
     height: 100%;
-    padding: 0 24px;
+    padding: 0 12px;
+    gap: 10px;
 }
 
 .logo {
     display: flex;
     gap: 4px;
-    margin-right: 12px;
 }
 
 .dot {
@@ -59,48 +77,102 @@ body {
 .dot.green { background-color: var(--green-color); }
 
 .app-bar h1 {
-    font-size: 20px;
-    font-weight: 500;
-    color: var(--text-color);
-}
-
-.container {
-    max-width: 960px;
-    margin: 24px auto;
-    padding: 0 16px;
-}
-
-.card {
-    background-color: var(--card-bg);
-    border-radius: var(--card-radius);
-    box-shadow: var(--card-shadow);
-    padding: 24px;
-    margin-bottom: 24px;
-}
-
-.card h2 {
-    margin-top: 0;
-    margin-bottom: 16px;
     font-size: 18px;
     font-weight: 500;
     color: var(--text-color);
 }
 
-/* Transport Card */
-.transport-controls {
+/* Body: toolbar + roll area + dock */
+.app-body {
     display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
+/* Main content area: roll area + dock. Column by default, row at >=1100px. */
+.main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ---------- Transport toolbar (one compact row) ---------- */
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 4px 12px;
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.toolbar .t-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.toolbar .t-divider {
+    width: 1px;
+    height: 26px;
+    background: var(--border-color);
+    flex-shrink: 0;
+}
+
+.toolbar .t-position {
+    margin-left: auto;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    color: var(--secondary-text);
+    padding: 2px 8px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.toolbar .t-more {
+    margin-left: 8px;
+}
+
+.t-value {
+    font-size: 13px;
+    font-weight: 500;
+    min-width: 20px;
+    text-align: right;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.t-drawscroll {
+    display: none;
+}
+@media (pointer: coarse) {
+    .t-drawscroll {
+        display: block;
+    }
+}
+
+/* ---------- Buttons ---------- */
 .button {
     border: none;
-    border-radius: 24px;
-    padding: 8px 16px;
-    font-size: 14px;
+    border-radius: 6px;
+    padding: 0 12px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
     transition: background-color 0.2s, opacity 0.2s;
 }
 
@@ -128,48 +200,104 @@ body {
     background-color: var(--bg-color);
 }
 
-input[type="range"] {
-    -webkit-appearance: none;
-    width: 120px;
-    height: 4px;
-    border-radius: 2px;
-    background-color: var(--border-color);
-    outline: none;
-    margin: 0 8px;
+.button.rec-on {
+    background-color: var(--red-color);
+    color: white;
+    border-color: var(--red-color);
 }
 
-input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background-color: var(--primary-color);
-    cursor: pointer;
-    margin-top: -6px;
+/* Touch-friendly target: ensure at least 44x44 on touch devices */
+@media (pointer: coarse) {
+    .button {
+        height: 40px;
+        padding: 0 14px;
+        font-size: 14px;
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
-input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background-color: var(--primary-color);
-    cursor: pointer;
-    border: none;
+/* More popover (phone) */
+.more-popover {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid var(--border-color);
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    z-index: 50;
+    box-shadow: 0 -2px 10px rgba(60,64,67,0.2);
+}
+.more-popover button {
+    width: 100%;
+    height: 40px;
+    font-size: 13px;
 }
 
-/* Grid Card */
-.roll {
+/* ---------- Roll area fills remaining space ---------- */
+.roll-area {
+    flex: 1;
+    min-height: 0;
     display: flex;
-    align-items: flex-start;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
+    flex-direction: column;
     overflow: hidden;
+    padding: 0 12px;
+}
+
+/* Overview strip on top of the scroller */
+.overview-strip {
+    display: block;
+    width: 100%;
+    height: 36px;
+    flex-shrink: 0;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    margin-bottom: -1px;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.roll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 8px 8px;
+    touch-action: pan-x pan-y;
+}
+
+/* Pinned drawing layer: piano + grid stay in view while the gridSpacer
+   sizes the scrollable area underneath. */
+.roll-viewport {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+}
+
+.gridSpacer {
+    /* Normal-flow spacer that only provides the scroll size.
+       Its height/width are set by JS in resizeCanvas(). */
+    pointer-events: none;
+    margin-top: 0;
 }
 
 #pianoCanvas {
     display: block;
-    flex: none;
     width: 72px;
+    flex: none;
     cursor: pointer;
     touch-action: none;
     background-color: var(--card-bg);
@@ -182,155 +310,262 @@ input[type="range"]::-moz-range-thumb {
 }
 
 #gridCanvas {
+    position: absolute;
+    left: 0;
+    top: 0;
     display: block;
-    width: 100%;
-    /* height: 100%; */ /* removed, we set height via JS */
     background-color: var(--card-bg);
 }
 
-.piano-hint {
-    font-size: 14px;
-    color: var(--secondary-text);
-    margin-top: 8px;
-    text-align: center;
+/* ---------- Collapsible dock (bottom / right sidebar) ---------- */
+.dock {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border-color);
+    background: white;
+    overflow: hidden;
 }
 
-/* Sound Card */
-.sound-controls {
+.dock-toggle {
+    width: 100%;
+    padding: 6px 12px;
+    text-align: left;
+    background: var(--bg-color);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.dock-content {
     display: flex;
+    flex-direction: column;
+    height: var(--dock-height);
+    overflow: hidden;
+}
+
+.dock-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.dock-tab {
+    flex: 1;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--secondary-text);
+}
+
+.dock-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.dock-panel {
+    display: none;
+    padding: 8px 12px;
+    overflow: auto;
+}
+
+.dock-panel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dock-panel.hidden {
+    display: none;
+}
+
+.sound-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
     flex-wrap: wrap;
-    gap: 24px;
+}
+
+.sound-row > * {
+    flex: 1;
+    min-width: 120px;
 }
 
 .waveform-select, .volume-control, .adsr-group {
     display: flex;
     flex-direction: column;
-    min-width: 150px;
+    gap: 4px;
 }
 
 .waveform-select label, .volume-control label, .adsr-slider label {
-    margin-bottom: 4px;
-    font-size: 14px;
-    color: var(--text-color);
+    font-size: 12px;
+    color: var(--secondary-text);
 }
 
 .waveform-select select, .volume-control input, .adsr-slider input {
     width: 100%;
     padding: 4px;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .adsr-group {
-    flex: 1;
-    min-width: 200px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .adsr-slider {
-    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 #envelopeCanvas {
-    width: 100%;
-    height: 120px;
+    width: 120px;
+    height: 100px;
     display: block;
     background-color: var(--card-bg);
-    border-radius: 8px;
-    margin-top: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
-/* Keyboard map */
-.keyboard-hint-text {
-    font-size: 13px;
-    color: var(--secondary-text);
-    margin: 0 0 10px 0;
+.keyboard-octave {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
 }
+
+.keyboard-map {
+    padding: 4px 8px 8px 8px;
+    overflow: auto;
+}
+
+.keyboard-hint-text {
+    font-size: 12px;
+    color: var(--secondary-text);
+    margin: 0 0 6px 0;
+}
+
 .keyboard-keys {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
 }
+
 .key {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 6px 8px;
-    border-radius: 6px;
+    gap: 3px;
+    padding: 5px 6px;
+    border-radius: 5px;
     font-size: 12px;
     font-weight: 500;
     text-align: center;
-    min-width: 44px;
+    min-width: 40px;
     user-select: none;
 }
+
 .key kbd {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     font-family: inherit;
 }
+
 .key.playable {
     background-color: #e8f0fe;
     border: 1px solid var(--primary-color);
     color: var(--primary-color);
 }
+
 .key.unplayable {
     background-color: #eceff1;
     border: 1px solid var(--border-color);
     color: #9aa0a6;
 }
+
 .key .key-note {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 400;
 }
 
-/* Responsive */
-@media (max-width: 600px) {
-    .container {
-        padding: 0 8px;
+/* Dock expanded on wide screens -> right sidebar */
+@media (min-width: 1100px) {
+    .main {
+        flex-direction: row;
     }
-    .card {
-        padding: 16px;
+    .roll-area {
+        flex: 1;
     }
-    .transport-controls {
+    .dock {
+        width: 330px;
+        height: 100%;
+        flex-shrink: 0;
+        border-top: none;
+        border-left: 1px solid var(--border-color);
+    }
+    .dock-content {
+        height: 100%;
+        flex: 1;
+        overflow: hidden;
+        display: flex;
         flex-direction: column;
-        align-items: stretch;
     }
-    .button {
-        width: 100%;
-        margin-bottom: 8px;
+    .dock-panel.active {
+        flex: 1;
+        min-height: 0;
     }
-    .sound-controls {
-        flex-direction: column;
+    #envelopeCanvas {
+        width: 110px;
+        height: 96px;
     }
-    .waveform-select, .volume-control, .adsr-group, #envelopeCanvas {
-        width: 100%;
-    }
-    .roll {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    #pianoCanvas {
-        width: 100%;
-        height: 72px; /* make it horizontal on very small screens? but we'll keep vertical and just make it full width? */
-        /* Actually, we want the piano to be on the left and the grid to the right, but on small screens we can stack? */
-        /* Let's keep the piano on top and the grid below for very small screens? */
-        /* However, the requirement is to keep it left of the grid. We'll change the flex direction to column and set the piano to a fixed height? */
-        /* But the piano width is 72px, we can't change that easily. Instead, we'll make the piano canvas have a fixed height and the grid take the rest? */
-        /* Let's do: on small screens, make the roll container column, piano canvas has height 72px (so it's a strip at the top) and grid takes the rest. */
-        /* But the piano keys are vertical, so we'd have to rotate? Not required. */
-        /* We'll keep the piano as a vertical strip on the left even on small screens by making the container have min-width:0 and the piano flex:0 0 72px. */
-        /* The grid area will take the remaining width. */
-        /* On very small screens, the grid area might become too narrow, but we'll let it scroll or shrink. */
-        /* We'll not change the flex direction for now, but we can make the piano canvas width 72px and the grid area flex:1. */
-        /* This will cause overflow on small screens, but we can make the container scroll horizontally. */
-        /* Alternatively, we can make the piano canvas have a width of 60px on small screens. */
-        /* Let's do: */
-        /* @media (max-width: 400px) { #pianoCanvas { width: 60px; } } */
+    .keyboard-map {
+        flex: 1;
+        min-height: 0;
     }
 }
 
-@media (max-width: 400px) {
-    #pianoCanvas {
-        width: 60px;
+/* Phone (<640px): compact everything */
+@media (max-width: 639px) {
+    .toolbar {
+        padding: 3px 8px;
+    }
+    .toolbar .t-group:not(.t-position) {
+        display: none;
+    }
+    .toolbar .t-more {
+        display: block;
+    }
+    .toolbar .t-position {
+        display: none;
+    }
+    .dock {
+        height: auto;
+    }
+    .dock-content {
+        height: auto;
+    }
+    .dock-panel.active {
+        height: auto;
+        min-height: 0;
+    }
+}
+
+/* Tablet: toolbar wraps to at most 2 rows */
+@media (min-width: 640px) and (max-width: 1099px) {
+    .toolbar .t-position {
+        order: 99;
+        width: 100%;
+        margin-left: 0;
+        margin-top: 6px;
+        text-align: center;
     }
 }
 
@@ -412,58 +647,6 @@ input[type="range"]::-moz-range-thumb {
     margin-top: 4px;
 }
 
-/* Grid scroller (virtual scrolling) */
-#gridScroller {
-    overflow: auto;
-    position: relative;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    touch-action: pan-x pan-y;
-    height: 500px;
-    min-height: 300px;
-}
-.gridSpacer {
-    position: absolute;
-    top: 0;
-    left: 0;
-}
-#pianoCanvas {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 72px;
-    cursor: pointer;
-    touch-action: none;
-    background-color: var(--card-bg);
-    z-index: 2;
-}
-.grid-area {
-    position: absolute;
-    left: 72px;
-    top: 0;
-    overflow: hidden;
-}
-#gridCanvas {
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: block;
-    background-color: var(--card-bg);
-    z-index: 1;
-}
-
-/* Position readout */
-.position-readout {
-    font-size: 13px;
-    font-family: 'Roboto Mono', monospace;
-    color: var(--secondary-text);
-    padding: 4px 8px;
-    background-color: var(--bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    margin-left: 16px;
-}
-
 /* Bars control */
 .bars-control {
     display: flex;
@@ -471,14 +654,13 @@ input[type="range"]::-moz-range-thumb {
     gap: 4px;
     font-size: 13px;
     color: var(--text-color);
-    margin-left: 12px;
 }
 .bars-control label {
     font-size: 12px;
     font-weight: 500;
 }
 .bars-control input[type="number"] {
-    width: 40px;
+    width: 44px;
     padding: 4px;
     font-size: 13px;
     border: 1px solid var(--border-color);
@@ -487,86 +669,8 @@ input[type="range"]::-moz-range-thumb {
     color: var(--text-color);
 }
 
-/* Bar tools */
-.bar-tools {
-    display: flex;
-    gap: 6px;
-    margin-left: 12px;
-}
-.bar-tools .button {
-    font-size: 12px;
-    padding: 6px 10px;
-}
-
-/* Overview strip */
-.overview-strip {
-    display: block;
-    width: 100%;
-    height: 36px;
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px 8px 0 0;
-    border-bottom: none;
-    margin-bottom: -1px;
-    cursor: pointer;
-}
-
-/* Follow label */
-.follow-label {
-    font-size: 13px;
-    color: var(--secondary-text);
-    margin-left: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-.follow-label input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-}
-
-/* Zoom buttons are smaller */
-#zoomOutBtn, #zoomInBtn {
-    padding: 8px 12px;
-    min-width: 28px;
-}
-
-/* Responsive */
-@media (max-width: 600px) {
-    .container {
-        padding: 0 8px;
-    }
-    .card {
-        padding: 16px;
-    }
-    .transport-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .button {
-        width: 100%;
-        margin-bottom: 8px;
-    }
-    .sound-controls {
-        flex-direction: column;
-    }
-    .waveform-select, .volume-control, .adsr-group, #envelopeCanvas {
-        width: 100%;
-    }
-    .roll {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    #pianoCanvas {
-        width: 100%;
-        height: 72px;
-    }
-}
-
-@media (max-width: 400px) {
-    #pianoCanvas {
-        width: 60px;
-    }
+/* input[type="number"] spinner cleanup */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;
 }

@@ -2,7 +2,7 @@
 let pianoState = {
   canvas: null,
   ctx: null,
-  // Logical dimensions (will be set in resizePiano)
+  // Logical dimensions (set in resizePiano)
   logicalWidth: 0,
   logicalHeight: 0,
   // Key dimensions in logical pixels
@@ -11,9 +11,11 @@ let pianoState = {
   // Black key dimensions
   blackKeyWidthRatio: 0.6, // 60% of white key width
   blackKeyHeightRatio: 0.6, // 60% of white key height
+  // Lit keys: row -> draw count (overlapping flashes stack)
+  lit: new Map(),
   // Interaction state
-  isMouseDown: false,
-  lastHoveredRow: -1, // to avoid retriggering the same key when dragging
+  pointerDown: false,
+  lastRow: -1,
 };
 
 // Initialize the piano canvas
@@ -23,318 +25,209 @@ function initPiano() {
   pianoState.ctx = pianoState.canvas.getContext('2d');
   resizePiano();
   drawPiano();
-  
-  // Set up mouse/touch events
-  pianoState.canvas.addEventListener('mousedown', handlePianoMouseDown);
-  pianoState.canvas.addEventListener('mousemove', handlePianoMouseMove);
-  pianoState.canvas.addEventListener('mouseup', handlePianoMouseUp);
-  pianoState.canvas.addEventListener('mouseleave', handlePianoMouseUp);
-  pianoState.canvas.addEventListener('touchstart', handlePianoTouchStart, {passive: false});
-  pianoState.canvas.addEventListener('touchmove', handlePianoTouchMove, {passive: false});
-  pianoState.canvas.addEventListener('touchend', handlePianoTouchEnd);
-  
-  pianoState.isMouseDown = false;
+
+  // Pointer events replace the old separate mouse + touch handlers
+  pianoState.canvas.addEventListener('pointerdown', handlePianoPointerDown);
+  pianoState.canvas.addEventListener('pointermove', handlePianoPointerMove);
+  pianoState.canvas.addEventListener('pointerup', handlePianoPointerUp);
+  pianoState.canvas.addEventListener('pointercancel', handlePianoPointerUp);
+  pianoState.canvas.addEventListener('pointerleave', handlePianoPointerUp);
+
+  pianoState.pointerDown = false;
+  pianoState.lastRow = -1;
 }
 
-// Resize the piano canvas to match the grid height and handle HiDPI
+// Resize the piano canvas to match the scroller viewport and handle HiDPI
 function resizePiano() {
-  // If canvas not yet created, we cannot set its size; just compute logical dimensions for later use
   if (!pianoState.canvas) {
-    // Still compute logical dimensions based on scroller height (if available)
     const scroller = document.getElementById('gridScroller');
-    if (scroller) {
+    if (scroller && window.state) {
       pianoState.logicalHeight = scroller.clientHeight;
-      pianoState.logicalWidth = 72; // fixed width in logical pixels
-      if (window.state) {
-        pianoState.keyHeight = pianoState.logicalHeight / window.state.ROWS;
-        pianoState.keyWidth = pianoState.logicalWidth;
-      }
+      pianoState.logicalWidth = 72;
+      pianoState.keyHeight = window.state.ROW_HEIGHT;
+      pianoState.keyWidth = 72;
     }
     return;
   }
-  
+
   const scroller = document.getElementById('gridScroller');
   if (!scroller) return;
-  
-  // The piano should be as tall as the scroller viewport
+
+  // The piano is as tall as the scroller viewport (pinned layer)
   const scrollerHeight = scroller.clientHeight;
   pianoState.logicalHeight = scrollerHeight;
   pianoState.logicalWidth = 72; // fixed width in logical pixels
-  
-  // Set the canvas size in device pixels
+
   pianoState.canvas.width = pianoState.logicalWidth * window.devicePixelRatio;
   pianoState.canvas.height = pianoState.logicalHeight * window.devicePixelRatio;
-  
-  // Set the CSS size
+
   pianoState.canvas.style.width = pianoState.logicalWidth + 'px';
   pianoState.canvas.style.height = pianoState.logicalHeight + 'px';
-  
-  // Set the transform to scale by devicePixelRatio
+
   pianoState.ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-  
-  // Calculate key dimensions
-  pianoState.keyHeight = pianoState.logicalHeight / window.state.ROWS; // same as grid row height
+
+  // Key height matches the grid row height exactly so rows line up
+  pianoState.keyHeight = window.state.ROW_HEIGHT;
   pianoState.keyWidth = pianoState.logicalWidth;
-  
+
   drawPiano();
 }
 
-// Draw the piano keyboard
+// Row at piano canvas coordinate y, or null for the header / out of range
+function pianoRowFromY(y) {
+  if (!window.state) return null;
+  const headerH = window.state.HEADER_H;
+  if (y < headerH) return null;
+  const row = Math.floor((y - headerH + window.state.scrollY) / pianoState.keyHeight);
+  if (row < 0 || row >= window.state.ROWS) return null;
+  return row;
+}
+
+function pianoPos(e) {
+  const rect = pianoState.canvas.getBoundingClientRect();
+  return e.clientY - rect.top;
+}
+
+// Draw the piano keyboard (full redraw: lit keys overlay everything)
 function drawPiano() {
-  // Ensure sequencer is initialized and canvas exists
   if (!window.state || !pianoState.canvas) return;
-  
+
   const ctx = pianoState.ctx;
   const width = pianoState.logicalWidth;
   const height = pianoState.logicalHeight;
   const keyHeight = pianoState.keyHeight;
-  
-  // Get scroll offset from sequencer state
   const scrollY = window.state.scrollY || 0;
-  
+  const headerH = window.state.HEADER_H;
+
   // Clear background
   ctx.fillStyle = '#f8f9fa';
   ctx.fillRect(0, 0, width, height);
-  
-  // Compute visible row range
-  const firstRow = Math.floor(scrollY / keyHeight);
-  const lastRow = Math.min(window.state.ROWS - 1, Math.ceil((scrollY + height) / keyHeight));
-  
-  // First, draw all visible white keys (full width)
-  for (let row = firstRow; row <= lastRow; row++) {
-    const y = row * keyHeight - scrollY;
-    if (window.state.isBlackKey[row]) {
-      // Black key row: draw white key underneath
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, y, pianoState.keyWidth, keyHeight);
-      ctx.strokeStyle = '#cccccc';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0, y, pianoState.keyWidth, keyHeight);
-    } else {
-      // White key row: draw white key
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, y, pianoState.keyWidth, keyHeight);
-      ctx.strokeStyle = '#cccccc';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0, y, pianoState.keyWidth, keyHeight);
-    }
-  }
-  
-  // Draw note names on visible white keys (right aligned, with padding)
-  ctx.fillStyle = '#5f6368';
-  ctx.font = '12px Roboto';
-  ctx.textAlign = 'right';
-  for (let row = firstRow; row <= lastRow; row++) {
-    if (!window.state.isBlackKey[row]) {
-      const y = row * keyHeight - scrollY;
-      const noteName = window.state.noteNames[row];
-      // Octave label on C keys (stronger line)
-      const isC = noteName.startsWith('C');
-      if (isC) {
-        // Stronger line at each C
-        ctx.strokeStyle = '#999999';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-        ctx.fillStyle = '#202124';
-        ctx.font = 'bold 12px Roboto';
-      } else {
-        ctx.fillStyle = '#5f6368';
-        ctx.font = '12px Roboto';
-      }
-      ctx.fillText(noteName, pianoState.keyWidth - 4, y + keyHeight * 0.7);
-      // Reset font
-      ctx.font = '12px Roboto';
-    }
-  }
-  
-  // Draw black keys on top (visible rows only)
-  for (let row = firstRow; row <= lastRow; row++) {
-    if (window.state.isBlackKey[row]) {
-      const y = row * keyHeight - scrollY;
-      const blackKeyWidth = pianoState.keyWidth * pianoState.blackKeyWidthRatio;
-      const blackKeyHeight = keyHeight * pianoState.blackKeyHeightRatio;
-      // Center the black key horizontally
-      const x = (pianoState.keyWidth - blackKeyWidth) / 2;
-      
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(x, y, blackKeyWidth, blackKeyHeight);
-    }
-  }
-}
 
-// Flash a piano key (highlight it blue for a duration)
-function flashPianoKey(row, delayMs, durationMs) {
-  // Ensure sequencer is initialized
-  if (!window.state) return;
-  
-  // Use setTimeout to delay the flash, then draw the highlight and remove it after duration
-  setTimeout(() => {
-    if (!pianoState.canvas) return;
-    
-    const scrollY = window.state.scrollY || 0;
-    const y = row * pianoState.keyHeight - scrollY;
-    const highlightColor = window.state.isBlackKey[row] ? 'rgba(26, 115, 232, 0.8)' : 'rgba(138, 180, 248, 0.8)';
-    
-    // Save current state
-    pianoState.ctx.save();
-    
-    // Draw the highlight rectangle over the key
-    pianoState.ctx.fillStyle = highlightColor;
-    if (window.state.isBlackKey[row]) {
-      const blackKeyWidth = pianoState.keyWidth * pianoState.blackKeyWidthRatio;
-      const blackKeyHeight = pianoState.keyHeight * pianoState.blackKeyHeightRatio;
-      const x = (pianoState.keyWidth - blackKeyWidth) / 2;
-      pianoState.ctx.fillRect(x, y, blackKeyWidth, blackKeyHeight);
-    } else {
-      pianoState.ctx.fillRect(0, y, pianoState.keyWidth, pianoState.keyHeight);
-    }
-    
-    // Restore state
-    pianoState.ctx.restore();
-    
-    // After durationMs, redraw the key normally
-    setTimeout(() => {
-      redrawPianoKey(row);
-    }, durationMs);
-  }, delayMs);
-}
+  // Blank header cell at the top, matching the ruler
+  ctx.fillStyle = '#e8eaed';
+  ctx.fillRect(0, 0, width, headerH);
+  ctx.strokeStyle = '#dadce0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, headerH);
+  ctx.lineTo(width, headerH);
+  ctx.stroke();
 
-// Redraw a single piano key (used to remove highlight)
-function redrawPianoKey(row) {
-  if (!pianoState.canvas) return;
-  
-  const ctx = pianoState.ctx;
-  const scrollY = window.state.scrollY || 0;
-  const y = row * pianoState.keyHeight - scrollY;
-  const keyHeight = pianoState.keyHeight;
-  
-  // Clear the key area
-  ctx.clearRect(0, y, pianoState.keyWidth, keyHeight);
-  
-  // Redraw the key as it should be (white or black key background)
-  if (window.state.isBlackKey[row]) {
-    // Draw white key background
+  // Visible row range (rows are drawn at y = HEADER_H + row*keyHeight - scrollY)
+  const firstRow = Math.max(0, Math.floor((scrollY - headerH) / keyHeight));
+  const lastRow = Math.min(
+    window.state.ROWS - 1,
+    Math.ceil((scrollY + height - headerH) / keyHeight)
+  );
+
+  // White keys (underneath the black keys)
+  ctx.strokeStyle = '#cccccc';
+  ctx.lineWidth = 1;
+  for (let row = firstRow; row <= lastRow; row++) {
+    const y = headerH + row * keyHeight - scrollY;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, y, pianoState.keyWidth, keyHeight);
-    ctx.strokeStyle = '#cccccc';
-    ctx.lineWidth = 1;
     ctx.strokeRect(0, y, pianoState.keyWidth, keyHeight);
-    // Draw black key on top
+  }
+
+  // Note names on white keys; C keys bold
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let row = firstRow; row <= lastRow; row++) {
+    if (window.state.isBlackKey[row]) continue;
+    const y = headerH + row * keyHeight - scrollY;
+    const noteName = window.state.noteNames[row];
+    const isC = noteName.startsWith('C');
+    ctx.fillStyle = isC ? '#202124' : '#5f6368';
+    ctx.font = isC ? 'bold 12px Roboto, Arial, sans-serif' : '12px Roboto, Arial, sans-serif';
+    ctx.fillText(noteName, pianoState.keyWidth - 4, y + keyHeight * 0.72);
+  }
+
+  // Black keys with small white note labels
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let row = firstRow; row <= lastRow; row++) {
+    if (!window.state.isBlackKey[row]) continue;
+    const y = headerH + row * keyHeight - scrollY;
     const blackKeyWidth = pianoState.keyWidth * pianoState.blackKeyWidthRatio;
     const blackKeyHeight = keyHeight * pianoState.blackKeyHeightRatio;
     const x = (pianoState.keyWidth - blackKeyWidth) / 2;
+
     ctx.fillStyle = '#000000';
     ctx.fillRect(x, y, blackKeyWidth, blackKeyHeight);
-  } else {
-    // White key row
+
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, y, pianoState.keyWidth, keyHeight);
-    ctx.strokeStyle = '#cccccc';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, y, pianoState.keyWidth, keyHeight);
-    // Draw note name
-    ctx.fillStyle = window.state.noteNames[row].startsWith('C') ? '#202124' : '#5f6368';
-    ctx.font = window.state.noteNames[row].startsWith('C') ? 'bold 12px Roboto' : '12px Roboto';
-    ctx.textAlign = 'right';
-    ctx.fillText(window.state.noteNames[row], pianoState.keyWidth - 4, y + keyHeight * 0.7);
-    ctx.font = '12px Roboto';
+    ctx.font = '10px Roboto, Arial, sans-serif';
+    ctx.fillText(window.state.noteNames[row], pianoState.keyWidth / 2, y + blackKeyHeight / 2);
+  }
+
+  // Lit keys overlay (stacked flashes)
+  if (pianoState.lit.size > 0) {
+    for (const [row, count] of pianoState.lit.entries()) {
+      const y = headerH + row * keyHeight - scrollY;
+      if (y + keyHeight < 0 || y > height) continue;
+      const highlightColor = window.state.isBlackKey[row]
+        ? 'rgba(26, 115, 232, 0.8)'
+        : 'rgba(138, 180, 248, 0.8)';
+      ctx.fillStyle = highlightColor;
+      if (window.state.isBlackKey[row]) {
+        const blackKeyWidth = pianoState.keyWidth * pianoState.blackKeyWidthRatio;
+        const blackKeyHeight = keyHeight * pianoState.blackKeyHeightRatio;
+        const x = (pianoState.keyWidth - blackKeyWidth) / 2;
+        ctx.fillRect(x, y, blackKeyWidth, blackKeyHeight);
+      } else {
+        ctx.fillRect(0, y, pianoState.keyWidth, keyHeight);
+      }
+    }
   }
 }
 
-// Handle piano mouse down
-function handlePianoMouseDown(e) {
+// Light a piano key for a duration (stacked, nothing is erased)
+function flashPianoKey(row, delayMs, durationMs) {
   if (!window.state) return;
-  const pos = getMousePos(pianoState.canvas, e);
-  const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < window.state.ROWS) {
-    playPianoKey(row);
-    pianoState.isMouseDown = true;
-    pianoState.lastHoveredRow = row;
-  }
+  pianoState.lit.set(row, (pianoState.lit.get(row) || 0) + 1);
+  drawPiano();
+  setTimeout(() => {
+    if (!pianoState.canvas) return;
+    const n = pianoState.lit.get(row);
+    if (!n) return;
+    if (n <= 1) pianoState.lit.delete(row);
+    else pianoState.lit.set(row, n - 1);
+    drawPiano();
+  }, delayMs + durationMs);
 }
 
-// Handle piano mouse move
-function handlePianoMouseMove(e) {
-  if (!pianoState.isMouseDown || !window.state) return;
-  const pos = getMousePos(pianoState.canvas, e);
-  const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < window.state.ROWS && row !== pianoState.lastHoveredRow) {
-    playPianoKey(row);
-    pianoState.lastHoveredRow = row;
-  }
-}
-
-// Handle piano mouse up
-function handlePianoMouseUp() {
-  pianoState.isMouseDown = false;
-  pianoState.lastHoveredRow = -1;
-}
-
-// Handle piano touch start
-function handlePianoTouchStart(e) {
-  e.preventDefault();
-  if (!window.state) return;
-  const pos = getTouchPos(pianoState.canvas, e);
-  const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < window.state.ROWS) {
-    playPianoKey(row);
-    pianoState.isMouseDown = true;
-    pianoState.lastHoveredRow = row;
-  }
-}
-
-// Handle piano touch move
-function handlePianoTouchMove(e) {
-  e.preventDefault();
-  if (!pianoState.isMouseDown || !window.state) return;
-  const pos = getTouchPos(pianoState.canvas, e);
-  const row = Math.floor(pos.y / pianoState.keyHeight);
-  if (row >= 0 && row < window.state.ROWS && row !== pianoState.lastHoveredRow) {
-    playPianoKey(row);
-    pianoState.lastHoveredRow = row;
-  }
-}
-
-// Handle piano touch end
-function handlePianoTouchEnd() {
-  pianoState.isMouseDown = false;
-  pianoState.lastHoveredRow = -1;
-}
-
-// Play a note on the piano key (preview) and toggle grid cell at current step
+// Play a note on the piano key (preview). When Rec is on, also toggle the
+// grid cell at the current step (undoable) and advance the playhead.
 function playPianoKey(row) {
   if (!window.state) return;
-  
-  // Resume audio context if needed
+
   resumeAudioContext().then(() => {
     const frequency = window.state.frequencies[row];
-    // Use a fixed duration of 0.3s for preview
     const duration = 0.3;
-    // Use current waveform and ADSR values from the UI
     const waveform = document.getElementById('waveformSelect').value;
     const env = {
       attack: parseFloat(document.getElementById('attackSlider').value),
       decay: parseFloat(document.getElementById('decaySlider').value),
       sustain: parseFloat(document.getElementById('sustainSlider').value),
-      release: parseFloat(document.getElementById('releaseSlider').value)
+      release: parseFloat(document.getElementById('releaseSlider').value),
     };
     playNote(frequency, audioContext.currentTime, duration, waveform, env);
-    // Flash the piano key
-    flashPianoKey(row, 0, duration * 1000); // delay 0, duration in ms
-    // Toggle grid cell at current step (sequencer state is guaranteed to exist after initSequencer)
+    flashPianoKey(row, 0, duration * 1000);
+
+    if (!window.state.rec) return;
+
+    window.beginEdit();
     window.state.grid[row][window.state.playStep] = !window.state.grid[row][window.state.playStep];
     window.state.cacheDirty = true;
     window.drawGrid();
-    
-    // Step recording: advance to the next step so the next note goes to the next column
-    // Only advance if the sequencer is not currently playing (to avoid interfering with playback)
+    window.endEdit();
+    window.debouncedAutosave();
+
+    // Step recording: advance to the next step
     if (!window.state.isPlaying) {
       window.state.playStep = (window.state.playStep + 1) % window.state.COLS;
       window.drawGrid();
-      // Scroll playhead into view
       scrollPlayheadIntoView();
     }
   });
@@ -348,7 +241,6 @@ function scrollPlayheadIntoView() {
   const playheadX = window.state.playStep * cellWidth;
   const vw = scroller.clientWidth - 72;
   const scrollX = scroller.scrollLeft;
-  // If playhead is outside visible area, scroll to center it
   if (playheadX < scrollX || playheadX > scrollX + vw - cellWidth) {
     scroller.scrollLeft = Math.max(0, playheadX - vw / 2);
     window.state.scrollX = scroller.scrollLeft;
@@ -356,23 +248,36 @@ function scrollPlayheadIntoView() {
   }
 }
 
-// Get mouse position relative to piano canvas
-function getMousePos(canvas, evt) {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: evt.clientX - rect.left,
-    y: evt.clientY - rect.top
-  };
+// Handle piano pointer down
+function handlePianoPointerDown(e) {
+  e.preventDefault();
+  if (!window.state) return;
+  const row = pianoRowFromY(pianoPos(e));
+  if (row === null) return;
+  pianoState.pointerDown = true;
+  pianoState.lastRow = row;
+  playPianoKey(row);
+  try {
+    pianoState.canvas.setPointerCapture(e.pointerId);
+  } catch (err) {
+    // pointer capture not supported
+  }
 }
 
-// Get touch position relative to piano canvas
-function getTouchPos(canvas, evt) {
-  const rect = canvas.getBoundingClientRect();
-  const touch = evt.touches[0];
-  return {
-    x: touch.clientX - rect.left,
-    y: touch.clientY - rect.top
-  };
+// Handle piano pointer move
+function handlePianoPointerMove(e) {
+  if (!pianoState.pointerDown || !window.state) return;
+  const row = pianoRowFromY(pianoPos(e));
+  if (row !== null && row !== pianoState.lastRow) {
+    pianoState.lastRow = row;
+    playPianoKey(row);
+  }
+}
+
+// Handle piano pointer up / cancel / leave
+function handlePianoPointerUp() {
+  pianoState.pointerDown = false;
+  pianoState.lastRow = -1;
 }
 
 // Expose functions
@@ -380,9 +285,3 @@ window.initPiano = initPiano;
 window.drawPiano = drawPiano;
 window.flashPianoKey = flashPianoKey;
 window.resizePiano = resizePiano;
-
-// Initialize on load (but we'll call it from main.js after DOM is ready)
-// We'll not auto-init here to avoid errors if DOM isn't ready.
-// Instead, we'll call initPiano from main.js.
-// However, to be safe, we can check if DOM is ready.
-// We'll leave it to main.js to call initPiano.

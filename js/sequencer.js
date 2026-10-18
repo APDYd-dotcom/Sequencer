@@ -19,6 +19,7 @@ const state = {
   scrollX: 0,
   scrollY: 0,
   follow: true,        // follow playhead while playing
+  rec: false,          // step recording: piano keys / keys write into the grid
 
   // Header layout
   LOOP_BAR_H: 12,
@@ -129,19 +130,6 @@ function initSequencer() {
   resizeCanvas();
   drawGrid();
 
-  // On load, scroll so that C4-B5 (the old range) is visible
-  // row 0 = MIDI 95 (B6); C4 = MIDI 60 -> row 35; B5 = MIDI 83 -> row 12
-  const c4Row = 35;
-  const c4Y = c4Row * state.ROW_HEIGHT;
-  const scroller = document.getElementById('gridScroller');
-  if (scroller) {
-    scroller.scrollTop = Math.max(0, c4Y - scroller.clientHeight / 2);
-    state.scrollY = scroller.scrollTop;
-    state.scrollX = scroller.scrollLeft;
-    drawGrid();
-    drawOverview();
-  }
-
   // Set up pointer events
   state.canvas.addEventListener('pointerdown', handlePointerDown);
   state.canvas.addEventListener('pointermove', handlePointerMove);
@@ -149,8 +137,49 @@ function initSequencer() {
   state.canvas.addEventListener('pointercancel', handlePointerUp);
   state.canvas.addEventListener('pointerleave', handlePointerUp);
 
+  // Overview strip: click / drag to scroll the roll
+  const overview = document.getElementById('overviewCanvas');
+  if (overview) {
+    overview.addEventListener('pointerdown', handleOverviewPointerDown);
+    overview.addEventListener('pointermove', handleOverviewPointerMove);
+    overview.addEventListener('pointerup', handleOverviewPointerUp);
+    overview.addEventListener('pointercancel', handleOverviewPointerUp);
+  }
+
   // Drag state
   state.drag = null;
+  state.overviewDrag = false;
+
+  // Deferred initial scroll: the layout (cellWidth) must be done first.
+  // Re-applied after the saved song is loaded (see deserializeSong).
+  requestAnimationFrame(() => scrollToInitialRow());
+}
+
+// Row of the first note in the song, or null when the song is empty
+function firstNoteRow() {
+  for (let row = 0; row < state.ROWS; row++) {
+    for (let col = 0; col < state.COLS; col++) {
+      if (state.grid[row][col]) return row;
+    }
+  }
+  return null;
+}
+
+// Scroll the roll so the given row is centred vertically
+function scrollToRow(row) {
+  const scroller = document.getElementById('gridScroller');
+  if (!scroller) return;
+  const y = state.HEADER_H + row * state.ROW_HEIGHT;
+  scroller.scrollTop = Math.max(0, y - scroller.clientHeight / 2);
+  state.scrollY = scroller.scrollTop;
+  state.scrollX = scroller.scrollLeft;
+  drawGrid();
+  drawOverview();
+}
+
+// Scroll to the first note if any, otherwise centre on C4 (row 35)
+function scrollToInitialRow() {
+  scrollToRow(firstNoteRow() !== null ? firstNoteRow() : 35);
 }
 
 // Resize canvas to fit viewport and handle HiDPI
@@ -165,6 +194,11 @@ function resizeCanvas() {
   const vw = scroller.clientWidth;
   const vh = scroller.clientHeight;
 
+  // Recalculate cell dimensions (in logical pixels) BEFORE computing the
+  // full song size, so the spacer is correct on the very first load.
+  state.cellWidth = state.zoom;
+  state.cellHeight = state.ROW_HEIGHT; // fixed
+
   // Full song size
   const fullWidth = state.COLS * state.cellWidth;
   const fullHeight = state.HEADER_H + state.ROWS * state.ROW_HEIGHT;
@@ -173,11 +207,14 @@ function resizeCanvas() {
   if (spacer) {
     spacer.style.width = fullWidth + 'px';
     spacer.style.height = fullHeight + 'px';
+    spacer.style.marginTop = -vh + 'px';
   }
 
-  // Set grid area size (viewport)
-  gridArea.style.left = '72px';
-  gridArea.style.top = '0';
+  // Pin the drawing-layer viewport at the top-left of the scroller
+  const viewport = document.querySelector('.roll-viewport');
+  if (viewport) viewport.style.height = vh + 'px';
+
+  // Grid area fills the viewport row next to the piano
   gridArea.style.width = (vw - 72) + 'px';
   gridArea.style.height = vh + 'px';
 
@@ -191,10 +228,6 @@ function resizeCanvas() {
 
   // Set the transform to scale by devicePixelRatio
   state.ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-
-  // Recalculate cell dimensions (in logical pixels) - cellWidth comes from zoom
-  state.cellWidth = state.zoom;
-  state.cellHeight = state.ROW_HEIGHT; // fixed
 
   // Set up offscreen cache
   setupCache();
@@ -246,9 +279,9 @@ function colFromX(x) {
   return Math.min(state.COLS - 1, Math.max(0, Math.floor((x + state.scrollX) / state.cellWidth)));
 }
 
-// Row from Y with scroll offset
+// Row from Y with scroll offset (grid area starts below the HEADER_H header)
 function rowFromY(y) {
-  return Math.min(state.ROWS - 1, Math.max(0, Math.floor((y + state.scrollY) / state.cellHeight)));
+  return Math.min(state.ROWS - 1, Math.max(0, Math.floor((y - state.HEADER_H + state.scrollY) / state.cellHeight)));
 }
 
 // Hit-test a point against canvas zones
@@ -265,6 +298,40 @@ function getPointerPos(e) {
     x: e.clientX - rect.left,
     y: e.clientY - rect.top,
   };
+}
+
+// Overview strip: centre the viewport at the clicked/proportional x
+function handleOverviewPointerDown(e) {
+  e.preventDefault();
+  const scroller = document.getElementById('gridScroller');
+  if (!scroller) return;
+  state.overviewDrag = true;
+  scrollOverviewTo(e.clientX);
+}
+
+function handleOverviewPointerMove(e) {
+  if (!state.overviewDrag) return;
+  e.preventDefault();
+  scrollOverviewTo(e.clientX);
+}
+
+function handleOverviewPointerUp() {
+  state.overviewDrag = false;
+}
+
+function scrollOverviewTo(clientX) {
+  const canvas = document.getElementById('overviewCanvas');
+  const scroller = document.getElementById('gridScroller');
+  if (!canvas || !scroller) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const fullWidth = state.COLS * state.cellWidth;
+  const scale = fullWidth > 0 ? rect.width / fullWidth : 1;
+  const target = x / scale - scroller.clientWidth / 2;
+  scroller.scrollLeft = Math.max(0, Math.min(target, scroller.scrollWidth - scroller.clientWidth));
+  state.scrollX = scroller.scrollLeft;
+  drawGrid();
+  drawOverview();
 }
 
 // Draw the entire grid (loop bar, ruler, grid cells, playhead)
@@ -331,7 +398,7 @@ function drawGrid() {
 
     // LOOP label
     cctx.fillStyle = loopOn ? '#1a73e8' : '#9aa0a6';
-    cctx.font = 'bold 11px Roboto';
+    cctx.font = 'bold 11px Roboto, Arial, sans-serif';
     cctx.textAlign = 'left';
     cctx.textBaseline = 'middle';
     cctx.fillText('LOOP', 6, state.LOOP_BAR_H / 2);
@@ -366,7 +433,7 @@ function drawGrid() {
         cctx.stroke();
         // Bar number
         cctx.fillStyle = '#1a73e8';
-        cctx.font = 'bold 11px Roboto';
+        cctx.font = 'bold 11px Roboto, Arial, sans-serif';
         cctx.fillText(Math.floor(col / state.STEPS_PER_BAR) + 1, cx, rulerMid);
       } else if (isBeat) {
         cctx.strokeStyle = '#b0b0b0';
@@ -377,7 +444,7 @@ function drawGrid() {
         cctx.stroke();
         // Beat number (small)
         cctx.fillStyle = '#5f6368';
-        cctx.font = '10px Roboto';
+        cctx.font = '10px Roboto, Arial, sans-serif';
         cctx.fillText((col % state.STEPS_PER_BAR) / 4 + 1, cx, rulerMid);
       } else if (cellWidth >= 24) {
         cctx.strokeStyle = '#e0e0e0';
@@ -547,7 +614,7 @@ function drawGrid() {
     const bar = Math.floor(playheadStep / state.STEPS_PER_BAR) + 1;
     const beatInBar = (playheadStep % state.STEPS_PER_BAR) / 4 + 1;
     ctx.fillStyle = state.isPlaying ? '#1a73e8' : '#8ab4f8';
-    ctx.font = 'bold 11px Roboto';
+    ctx.font = 'bold 11px Roboto, Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const chipRadius = 7;
@@ -569,7 +636,7 @@ function drawGrid() {
 // Toggle a cell at canvas coordinates (x, y)
 function toggleCell(x, y) {
   const col = Math.floor((x + state.scrollX) / state.cellWidth);
-  const row = Math.floor((y + state.scrollY) / state.cellHeight);
+  const row = Math.floor((y - state.HEADER_H + state.scrollY) / state.cellHeight);
   if (row >= 0 && row < state.ROWS && col >= 0 && col < state.COLS) {
     state.grid[row][col] = !state.grid[row][col];
     state.cacheDirty = true;
@@ -963,23 +1030,6 @@ function pasteBar() {
 // ---- Undo/Redo ----
 
 // Save a snapshot to undo history (called at start of an action)
-function undoSaveSnapshot() {
-  const snapshot = {
-    grid: state.grid.map(row => [...row]),
-    playStep: state.playStep,
-    startStep: state.startStep,
-    loopStart: state.loopStart,
-    loopEnd: state.loopEnd,
-    loopOn: state.loopOn,
-    bars: state.bars,
-  };
-  state.undoStack.push(snapshot);
-  if (state.undoStack.length > state.undoMax) {
-    state.undoStack.shift();
-  }
-  state.redoStack = [];
-}
-
 // Undo the last action
 function undo() {
   if (state.undoStack.length === 0) return;
@@ -1045,6 +1095,12 @@ function redo() {
 function beginEdit() {
   state.undoSnapshot = {
     grid: state.grid.map(row => [...row]),
+    playStep: state.playStep,
+    startStep: state.startStep,
+    loopStart: state.loopStart,
+    loopEnd: state.loopEnd,
+    loopOn: state.loopOn,
+    bars: state.bars,
   };
 }
 
@@ -1061,7 +1117,12 @@ function endEdit() {
     }
   }
   if (changed) {
-    undoSaveSnapshot();
+    // Push the BEFORE state so Undo can revert to it
+    state.undoStack.push(state.undoSnapshot);
+    if (state.undoStack.length > state.undoMax) {
+      state.undoStack.shift();
+    }
+    state.redoStack = [];
   }
   state.undoSnapshot = null;
 }
@@ -1167,6 +1228,9 @@ function deserializeSong(data) {
   drawGrid();
   drawOverview();
   updatePositionReadout();
+
+  // Re-apply the initial scroll now that the saved song is laid out
+  requestAnimationFrame(() => scrollToInitialRow());
 }
 
 function saveSong() {
@@ -1248,45 +1312,44 @@ function drawOverview() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio;
-  const vw = document.getElementById('gridScroller').clientWidth;
-  canvas.width = vw * dpr;
-  canvas.height = 36 * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const w = vw;
+  const scroller = document.getElementById('gridScroller');
+  const gridW = scroller ? scroller.clientWidth - 72 : 0;
+  const w = Math.max(1, gridW);
   const h = 36;
+
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.marginLeft = '72px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   ctx.fillStyle = '#f8f9fa';
   ctx.fillRect(0, 0, w, h);
 
   const fullWidth = state.COLS * state.cellWidth;
-  const scale = w / fullWidth;
+  const scale = fullWidth > 0 ? w / fullWidth : 1;
 
-  // Draw note density per step
-  for (let col = 0; col < state.COLS; col++) {
-    let count = 0;
-    for (let row = 0; row < state.ROWS; row++) {
-      if (state.grid[row][col]) count++;
-    }
-    if (count > 0) {
-      const intensity = Math.min(1, count / 6);
-      ctx.fillStyle = `rgba(26, 115, 232, ${0.2 + 0.6 * intensity})`;
-      const x = col * state.cellWidth * scale;
-      const barWidth = Math.max(1, state.cellWidth * scale);
-      ctx.fillRect(x, h - 6 * intensity, barWidth, 6 * intensity);
+  // Draw each note as a 2 px dot at its proportional x / y
+  ctx.fillStyle = '#1a73e8';
+  for (let row = 0; row < state.ROWS; row++) {
+    const yy = Math.floor((row / state.ROWS) * h);
+    for (let col = 0; col < state.COLS; col++) {
+      if (state.grid[row][col]) {
+        const xx = Math.floor(col * state.cellWidth * scale);
+        ctx.fillRect(xx, yy, 2, 2);
+      }
     }
   }
 
-  // Draw viewport rectangle
-  const scroller = document.getElementById('gridScroller');
+  // Viewport rectangle
   const scrollX = state.scrollX;
-  const vwGrid = scroller ? scroller.clientWidth - 72 : w;
   const viewLeft = scrollX * scale;
-  const viewWidth = vwGrid * scale;
+  const viewWidth = w * scale;
   ctx.strokeStyle = '#1a73e8';
   ctx.lineWidth = 2;
   ctx.strokeRect(viewLeft, 4, viewWidth, h - 8);
 
-  // Draw playhead
+  // Playhead
   const px = state.playStep * state.cellWidth * scale;
   ctx.fillStyle = '#1a73e8';
   ctx.fillRect(px, 0, 2, h);
@@ -1420,10 +1483,7 @@ window.togglePlay = togglePlay;
 window.setBpm = setBpm;
 window.clearGrid = clearGrid;
 window.randomPattern = randomPattern;
-window.state = state; // for debugging
-window.colFromX = colFromX;
-window.hitTest = hitTest;
-window.rowFromY = rowFromY;
+window.state = state; // shared with piano.js / main.js
 window.updatePositionReadout = updatePositionReadout;
 
 // Initialize notes on load

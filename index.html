@@ -8,49 +8,157 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-bar">
-        <div class="app-bar-content">
-            <div class="logo">
-                <div class="dot blue"></div>
-                <div class="dot red"></div>
-                <div class="dot yellow"></div>
-                <div class="dot green"></div>
-            </div>
-            <h1>Sequencer</h1>
-        </div>
-    </div>
-    <main class="container">
-        <section class="card transport-card">
-            <h2>Transport</h2>
-            <div class="transport-controls">
-                <button id="playStopBtn" class="button primary">Play</button>
-                <label for="bpmSlider">BPM: <span id="bpmValue">100</span></label>
-                <input type="range" id="bpmSlider" min="60" max="180" value="100">
-                <button id="zoomOutBtn" class="button outline">-</button>
-                <button id="zoomInBtn" class="button outline">+</button>
-                <label class="follow-label"><input type="checkbox" id="followBtn" checked> Follow</label>
-                <div class="bars-control">
-                    <label for="barsInput">Bars:</label>
-                    <button id="barsMinusBtn" class="button outline">-</button>
-                    <input type="number" id="barsInput" min="1" max="128" value="8" style="width:40px">
-                    <button id="barsPlusBtn" class="button outline">+</button>
+    <div class="app">
+        <header class="app-bar">
+            <div class="app-bar-content">
+                <div class="logo">
+                    <div class="dot blue"></div>
+                    <div class="dot red"></div>
+                    <div class="dot yellow"></div>
+                    <div class="dot green"></div>
                 </div>
-                <div id="positionReadout" class="position-readout">Bar 1 - Beat 1   00:00.0 / 00:00.0</div>
-                <div class="bar-tools">
+                <h1>Sequencer</h1>
+            </div>
+        </header>
+
+        <div class="app-body">
+            <!-- Transport toolbar (one compact row, wraps to at most 2 rows on tablets) -->
+            <div class="toolbar" id="toolbar">
+                <div class="t-group">
+                    <button id="playStopBtn" class="button primary">Play</button>
+                    <label for="bpmSlider">BPM</label>
+                    <input type="range" id="bpmSlider" min="60" max="180" value="100">
+                    <span id="bpmValue" class="t-value">100</span>
+                </div>
+                <div class="t-divider"></div>
+                <div class="t-group">
+                    <button id="zoomOutBtn" class="button outline" aria-label="Zoom out">-</button>
+                    <button id="zoomInBtn" class="button outline" aria-label="Zoom in">+</button>
+                    <label class="follow-label"><input type="checkbox" id="followBtn" checked> Follow</label>
+                    <div class="bars-control">
+                        <label for="barsInput">Bars</label>
+                        <button id="barsMinusBtn" class="button outline" aria-label="Fewer bars">-</button>
+                        <input type="number" id="barsInput" min="1" max="128" value="8" style="width:44px">
+                        <button id="barsPlusBtn" class="button outline" aria-label="More bars">+</button>
+                    </div>
+                </div>
+                <div class="t-divider"></div>
+                <div class="t-group">
                     <button id="duplicateBarBtn" class="button outline">Duplicate Bar</button>
                     <button id="clearBarBtn" class="button outline">Clear Bar</button>
                     <button id="copyBarBtn" class="button outline">Copy Bar</button>
                     <button id="pasteBarBtn" class="button outline">Paste Bar</button>
                 </div>
-                <button id="clearBtn" class="button outline">Clear</button>
-                <button id="randomBtn" class="button outline">Random</button>
-                <button id="exportBtn" class="button outline">Export</button>
-                <button id="newSongBtn" class="button outline">New</button>
-                <button id="saveSongBtn" class="button outline">Save</button>
-                <button id="openSongBtn" class="button outline">Open</button>
-                <input type="file" id="openSongInput" accept=".json" style="display:none">
+                <div class="t-divider"></div>
+                <div class="t-group">
+                    <button id="undoBtn" class="button outline" title="Undo (Ctrl+Z)">Undo</button>
+                    <button id="redoBtn" class="button outline" title="Redo (Ctrl+Shift+Z, Ctrl+Y)">Redo</button>
+                    <button id="recBtn" class="button outline" aria-pressed="false" title="Rec (step recording)">Rec</button>
+                </div>
+                <div class="t-divider"></div>
+                <div class="t-group">
+                    <button id="newSongBtn" class="button outline">New</button>
+                    <button id="saveSongBtn" class="button outline">Save</button>
+                    <button id="openSongBtn" class="button outline">Open</button>
+                    <input type="file" id="openSongInput" accept=".json" style="display:none">
+                    <button id="exportBtn" class="button outline">Export</button>
+                    <button id="clearBtn" class="button outline">Clear</button>
+                    <button id="randomBtn" class="button outline">Random</button>
+                </div>
+                <div class="t-divider"></div>
+                <div class="t-group t-position">
+                    <div id="positionReadout" class="position-readout">Bar 1 - Beat 1   00:00.0 / 00:00.0</div>
+                </div>
+                <div class="t-group t-drawscroll hidden">
+                    <button id="drawScrollBtn" class="button outline" aria-pressed="false">Draw</button>
+                </div>
+                <div class="t-more" id="tMore">
+                    <button id="moreBtn" class="button outline" aria-expanded="false">More</button>
+                </div>
             </div>
-        </section>
+
+            <!-- More popover (phone): buttons call the same globals as the toolbar -->
+            <div class="more-popover" id="morePopover" hidden>
+                <button onclick="duplicateBar()">Duplicate Bar</button>
+                <button onclick="clearBar()">Clear Bar</button>
+                <button onclick="copyBar()">Copy Bar</button>
+                <button onclick="pasteBar()">Paste Bar</button>
+                <button onclick="undo()">Undo</button>
+                <button onclick="redo()">Redo</button>
+                <button onclick="toggleRec()">Rec</button>
+                <button onclick="clearGrid()">Clear</button>
+                <button onclick="randomPattern()">Random</button>
+                <button onclick="document.getElementById('exportBtn').click()">Export</button>
+                <button onclick="document.getElementById('newSongBtn').click()">New</button>
+                <button onclick="document.getElementById('saveSongBtn').click()">Save</button>
+                <button onclick="document.getElementById('openSongBtn').click()">Open</button>
+            </div>
+
+            <!-- Roll area fills remaining space -->
+            <div class="main">
+            <section class="roll-area">
+                <canvas id="overviewCanvas" class="overview-strip"></canvas>
+                <div class="roll" id="gridScroller">
+                    <div class="roll-viewport">
+                        <canvas id="pianoCanvas"></canvas>
+                        <div class="grid-area">
+                            <canvas id="gridCanvas"></canvas>
+                        </div>
+                    </div>
+                    <div class="gridSpacer"></div>
+                </div>
+            </section>
+
+            <!-- Collapsible bottom dock (right sidebar at >=1100px) -->
+            <div class="dock" id="dock">
+                <button id="dockToggle" class="dock-toggle" aria-expanded="false">▾ Sound / Keyboard</button>
+                <div class="dock-content">
+                    <div class="dock-tabs">
+                        <button class="dock-tab active" data-tab="sound">Sound</button>
+                        <button class="dock-tab" data-tab="keyboard">Keyboard</button>
+                    </div>
+                    <div class="dock-panel sound-panel active" id="dockSound">
+                        <div class="sound-row">
+                            <div class="waveform-select">
+                                <label for="waveformSelect">Timbre:</label>
+                                <select id="waveformSelect"></select>
+                            </div>
+                            <div class="volume-control">
+                                <label for="volumeSlider">Volume: <span id="volumeValue">0.8</span></label>
+                                <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8">
+                            </div>
+                            <div class="adsr-group">
+                                <div class="adsr-slider">
+                                    <label for="attackSlider">Attack <span id="attackValue">0.01</span></label>
+                                    <input type="range" id="attackSlider" min="0" max="1" step="0.01" value="0.01">
+                                </div>
+                                <div class="adsr-slider">
+                                    <label for="decaySlider">Decay <span id="decayValue">0.8</span></label>
+                                    <input type="range" id="decaySlider" min="0" max="1" step="0.01" value="0.8">
+                                </div>
+                                <div class="adsr-slider">
+                                    <label for="sustainSlider">Sustain <span id="sustainValue">0.4</span></label>
+                                    <input type="range" id="sustainSlider" min="0" max="1" step="0.01" value="0.4">
+                                </div>
+                                <div class="adsr-slider">
+                                    <label for="releaseSlider">Release <span id="releaseValue">0.9</span></label>
+                                    <input type="range" id="releaseSlider" min="0" max="2" step="0.01" value="0.9">
+                                </div>
+                            </div>
+                            <canvas id="envelopeCanvas"></canvas>
+                        </div>
+                    </div>
+                    <div class="dock-panel keyboard-panel hidden" id="dockKeyboard">
+                        <div class="keyboard-octave">
+                            <button id="octDownBtn" class="button outline" aria-label="Octave down">Oct −</button>
+                            <button id="octUpBtn" class="button outline" aria-label="Octave up">Oct +</button>
+                        </div>
+                        <div class="keyboard-map" id="keyboardMap"></div>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
 
         <dialog id="exportDialog">
             <div class="export-dialog-content">
@@ -88,58 +196,7 @@
                 </div>
             </div>
         </dialog>
-
-        <section class="card grid-card">
-            <h2>Sequencer Grid</h2>
-            <canvas id="overviewCanvas" class="overview-strip"></canvas>
-            <div class="roll" id="gridScroller">
-                <div class="gridSpacer"></div>
-                <canvas id="pianoCanvas"></canvas>
-                <div class="grid-area">
-                    <canvas id="gridCanvas"></canvas>
-                </div>
-            </div>
-            <div class="piano-hint">Click a piano key to hear the note. Click or drag on the grid to place notes in that key's row.</div>
-        </section>
-        <section class="card keyboard-card">
-            <h2>Keyboard</h2>
-            <div class="keyboard-map" id="keyboardMap"></div>
-        </section>
-        <section class="card sound-card">
-            <h2>Sound</h2>
-            <div class="sound-controls">
-                <div class="waveform-select">
-                    <label for="waveformSelect">Timbre:</label>
-                    <select id="waveformSelect">
-                        <!-- Options will be generated by main.js -->
-                    </select>
-                </div>
-                <div class="volume-control">
-                    <label for="volumeSlider">Volume: <span id="volumeValue">0.8</span></label>
-                    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8">
-                </div>
-                <div class="adsr-group">
-                    <div class="adsr-slider">
-                        <label for="attackSlider">Attack (s): <span id="attackValue">0.01</span></label>
-                        <input type="range" id="attackSlider" min="0" max="1" step="0.01" value="0.01">
-                    </div>
-                    <div class="adsr-slider">
-                        <label for="decaySlider">Decay (s): <span id="decayValue">0.8</span></label>
-                        <input type="range" id="decaySlider" min="0" max="1" step="0.01" value="0.8">
-                    </div>
-                    <div class="adsr-slider">
-                        <label for="sustainSlider">Sustain: <span id="sustainValue">0.4</span></label>
-                        <input type="range" id="sustainSlider" min="0" max="1" step="0.01" value="0.4">
-                    </div>
-                    <div class="adsr-slider">
-                        <label for="releaseSlider">Release (s): <span id="releaseValue">0.9</span></label>
-                        <input type="range" id="releaseSlider" min="0" max="2" step="0.01" value="0.9">
-                    </div>
-                </div>
-                <canvas id="envelopeCanvas"></canvas>
-            </div>
-        </section>
-    </main>
+    </div>
     <script src="js/timbres.js"></script>
     <script src="js/vendor/lame.min.js"></script>
     <script src="js/export.js"></script>

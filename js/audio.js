@@ -390,4 +390,3 @@ window.initAudio = initAudio;
 window.getAudioContext = () => audioContext;
 window.setAudioContext = (ctx) => { audioContext = ctx; };
 window.makeAdditiveInstrument = makeAdditiveInstrument;
-EOF

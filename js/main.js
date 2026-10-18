@@ -3,38 +3,52 @@ let isInitialized = false;
 
 // Keyboard mapping as MIDI note numbers (not row indexes)
 // Row index = 95 - midiNote (row 0 = B6/MIDI 95, row 59 = C2/MIDI 36)
+// Mapped by physical key code (e.code) so AZERTY/QWERTZ layouts work and
+// Shift / CapsLock do not break notes.
 const keyMap = {
   // White keys
-  'a': 60,  // C4
-  's': 62,  // D4
-  'd': 64,  // E4
-  'f': 65,  // F4
-  'g': 67,  // G4
-  'h': 69,  // A4
-  'j': 71,  // B4
-  'k': 72,  // C5
-  'l': 74,  // D5
-  ';': 76,  // E5
-  'q': 77,  // F5
-  'w': 79,  // G5
-  'e': 81,  // A5
-  'r': 83,  // B5
+  KeyA: 60,   // C4
+  KeyS: 62,   // D4
+  KeyD: 64,   // E4
+  KeyF: 65,   // F4
+  KeyG: 67,   // G4
+  KeyH: 69,   // A4
+  KeyJ: 71,   // B4
+  KeyK: 72,   // C5
+  KeyL: 74,   // D5
+  Semicolon: 76, // E5
+  KeyQ: 77,   // F5
+  KeyW: 79,   // G5
+  KeyE: 81,   // A5
+  KeyR: 83,   // B5
   // Black keys (sharps/flats)
-  'z': 61,  // C#4
-  'x': 63,  // D#4
-  'c': 66,  // F#4
-  'v': 68,  // G#4
-  'b': 70,  // A#4
-  'n': 73,  // C#5
-  'm': 75,  // D#5
-  ',': 78,  // F#5
-  '.': 80,  // G#5
-  '/': 82,  // A#5
+  KeyZ: 61,   // C#4
+  KeyX: 63,   // D#4
+  KeyC: 66,   // F#4
+  KeyV: 68,   // G#4
+  KeyB: 70,   // A#4
+  KeyN: 73,   // C#5
+  KeyM: 75,   // D#5
+  Comma: 78,  // F#5
+  Period: 80, // G#5
+  Slash: 82,  // A#5
 };
 
 // Base MIDI note for keyboard mapping
 const KEYBOARD_BASE_MIDI = 60; // C4
-let keyboardOctaveShift = 0; // Z/X shift octave up/down
+let keyboardOctaveShift = 0; // PageDown/PageUp shift octave up/down
+
+// Display label for a physical key code
+function codeLabel(code) {
+  const labels = {
+    Semicolon: ';',
+    Comma: ',',
+    Period: '.',
+    Slash: '/',
+  };
+  if (labels[code]) return labels[code];
+  return code.replace('Key', '');
+}
 
 // Convert MIDI note to row index (row 0 = highest note)
 function midiToRow(midiNote) {
@@ -74,6 +88,9 @@ function initApp() {
   // Set up UI event listeners
   setupUIListeners();
 
+  // Initialize dock
+  initDock();
+
   // Initialize export
   initExport();
   
@@ -90,13 +107,25 @@ function initApp() {
   // Set up keyboard shortcuts
   setupKeyboardShortcuts();
   
-  // Handle window resize
-  window.addEventListener('resize', () => {
+  // Handle window resize with a ResizeObserver on the scroller
+  const scroller = document.getElementById('gridScroller');
+  const ro = new ResizeObserver(() => {
     resizeCanvas();
     resizePiano();
-    renderKeyboardMap();
+    if (typeof window.drawOverview === 'function') window.drawOverview();
+    if (typeof window.drawEnvelope === 'function') window.drawEnvelope();
   });
-  
+  if (scroller) ro.observe(scroller);
+
+  // Redraw everything once the web font is ready (canvas fonts have a fallback)
+  document.fonts.ready.then(() => {
+    if (typeof window.resizeCanvas === 'function') window.resizeCanvas();
+    if (typeof window.drawGrid === 'function') window.drawGrid();
+    if (typeof window.drawPiano === 'function') window.drawPiano();
+    if (typeof window.drawOverview === 'function') window.drawOverview();
+    if (typeof window.drawEnvelope === 'function') window.drawEnvelope();
+  });
+
   // Ensure audio context is resumed on first user interaction
   document.addEventListener('click', () => {
     resumeAudioContext().then(() => {
@@ -221,6 +250,24 @@ function setupUIListeners() {
     });
   }
 
+  // Draw / Scroll toggle (touch devices): in Draw mode the grid canvas does
+  // not pan so finger painting works; in Scroll mode the scroller pans.
+  const drawScrollBtn = document.getElementById('drawScrollBtn');
+  const scroller = document.getElementById('gridScroller');
+  let drawMode = true;
+  if (drawScrollBtn && scroller) {
+    function updateTouchAction() {
+      scroller.style.touchAction = drawMode ? 'none' : 'pan-x pan-y';
+      drawScrollBtn.setAttribute('aria-pressed', drawMode);
+      drawScrollBtn.textContent = drawMode ? 'Draw' : 'Scroll';
+    }
+    drawScrollBtn.addEventListener('click', () => {
+      drawMode = !drawMode;
+      updateTouchAction();
+    });
+    updateTouchAction();
+  }
+
   // Duplicate bar
   const duplicateBarBtn = document.getElementById('duplicateBarBtn');
   if (duplicateBarBtn) {
@@ -243,6 +290,46 @@ function setupUIListeners() {
   const pasteBarBtn = document.getElementById('pasteBarBtn');
   if (pasteBarBtn) {
     pasteBarBtn.addEventListener('click', pasteBar);
+  }
+
+  // Undo / Redo
+  const undoBtn = document.getElementById('undoBtn');
+  if (undoBtn) {
+    undoBtn.addEventListener('click', () => {
+      undo();
+    });
+  }
+  const redoBtn = document.getElementById('redoBtn');
+  if (redoBtn) {
+    redoBtn.addEventListener('click', () => {
+      redo();
+    });
+  }
+
+  // Rec (step recording) toggle
+  const recBtn = document.getElementById('recBtn');
+  if (recBtn) {
+    recBtn.addEventListener('click', () => {
+      window.state.rec = !window.state.rec;
+      recBtn.setAttribute('aria-pressed', window.state.rec);
+      recBtn.classList.toggle('rec-on', window.state.rec);
+    });
+  }
+
+  // Octave shift buttons in the Keyboard panel
+  const octDownBtn = document.getElementById('octDownBtn');
+  if (octDownBtn) {
+    octDownBtn.addEventListener('click', () => {
+      keyboardOctaveShift = Math.max(-2, keyboardOctaveShift - 1);
+      renderKeyboardMap();
+    });
+  }
+  const octUpBtn = document.getElementById('octUpBtn');
+  if (octUpBtn) {
+    octUpBtn.addEventListener('click', () => {
+      keyboardOctaveShift = Math.min(2, keyboardOctaveShift + 1);
+      renderKeyboardMap();
+    });
   }
 
   // New song
@@ -441,7 +528,7 @@ function renderKeyboardMap() {
     keyEl.title = noteName;
 
     const kbd = document.createElement('kbd');
-    kbd.textContent = isPlayable ? keyForRow : '—';
+    kbd.textContent = isPlayable ? codeLabel(keyForRow) : '—';
     keyEl.appendChild(kbd);
 
     const note = document.createElement('span');
@@ -460,50 +547,69 @@ function setupKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
     // Ignore keyboard shortcuts while a dialog is open
     if (document.querySelector('dialog[open]')) return;
-    // Space: play/stop
+
+    // Ignore all shortcuts when focus is inside an input / select / textarea /
+    // contenteditable (typing "e" in the Bars box must not play a note)
+    const target = document.activeElement;
+    if (target && (target.isContentEditable ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'SELECT' ||
+        target.tagName === 'TEXTAREA')) {
+      return;
+    }
+
+    // With ctrl/meta/alt held, handle ONLY undo/redo/duplicate and return.
+    // Notes only fire with no modifiers.
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      // Space (ctrl+space) hijacks nothing here; handled below without modifiers
+      // Ctrl/Cmd + Z: undo
+      if (e.code === 'KeyZ' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y: redo
+      if ((e.code === 'KeyZ' && e.shiftKey) || e.code === 'KeyY') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      // Ctrl/Cmd + D: duplicate bar
+      if (e.code === 'KeyD') {
+        e.preventDefault();
+        duplicateBar();
+        return;
+      }
+      return;
+    }
+
+    // Space: play/stop. Only when no modifier; never hijack a focused button
+    // or select (Space on a focused button only activates that button).
     if (e.code === 'Space') {
       e.preventDefault();
       togglePlay();
-      // Update button text
       const playStopBtn = document.getElementById('playStopBtn');
       if (playStopBtn) {
         playStopBtn.textContent = window.state.isPlaying ? 'Stop' : 'Play';
       }
+      return;
     }
-    // C: clear
-    if (e.key === 'c' || e.key === 'C') {
+
+    // Ignore key repeat for note keys (holding a key retriggers it)
+    if (e.repeat) return;
+
+    // Note keys only fire with no modifiers (checked above). e.code based.
+    if (e.code in keyMap) {
       e.preventDefault();
-      clearGrid();
-    }
-    // Z: shift keyboard octave down
-    if (e.key === 'z' || e.key === 'Z') {
-      e.preventDefault();
-      keyboardOctaveShift = Math.max(-2, keyboardOctaveShift - 1);
-      renderKeyboardMap();
-    }
-    // X: shift keyboard octave up
-    if (e.key === 'x' || e.key === 'X') {
-      e.preventDefault();
-      keyboardOctaveShift = Math.min(2, keyboardOctaveShift + 1);
-      renderKeyboardMap();
-    }
-    // Keyboard keys to play notes
-    if (e.key in keyMap) {
-      e.preventDefault();
-      const midiNote = keyMap[e.key] + keyboardOctaveShift * 12;
+      const midiNote = keyMap[e.code] + keyboardOctaveShift * 12;
       const row = midiToRow(midiNote);
       if (row >= 0 && row < window.state.ROWS) {
-        // Play the note, flash key, and toggle grid cell at current step via piano.js function
         window.playPianoKey(row);
       }
     }
-    // Ctrl/Cmd + D: duplicate bar
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
-      e.preventDefault();
-      duplicateBar();
-    }
+
     // Home: go to start of song
-    if (e.key === 'Home') {
+    if (e.code === 'Home') {
       e.preventDefault();
       window.state.startStep = 0;
       window.state.playStep = 0;
@@ -512,7 +618,7 @@ function setupKeyboardShortcuts() {
       window.updatePositionReadout();
     }
     // End: go to end of song
-    if (e.key === 'End') {
+    if (e.code === 'End') {
       e.preventDefault();
       window.state.startStep = window.state.COLS - 1;
       window.state.playStep = window.state.COLS - 1;
@@ -520,27 +626,34 @@ function setupKeyboardShortcuts() {
       window.drawOverview();
       window.updatePositionReadout();
     }
-    // Ctrl/Cmd + Z: undo
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    // PageDown: octave down
+    if (e.code === 'PageDown') {
       e.preventDefault();
-      undo();
+      keyboardOctaveShift = Math.max(-2, keyboardOctaveShift - 1);
+      renderKeyboardMap();
     }
-    // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y: redo
-    if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z') ||
-        ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
+    // PageUp: octave up
+    if (e.code === 'PageUp') {
       e.preventDefault();
-      redo();
+      keyboardOctaveShift = Math.min(2, keyboardOctaveShift + 1);
+      renderKeyboardMap();
     }
   });
 
-  // Ctrl/Cmd + mouse wheel for zoom
+  // Ctrl/Cmd + mouse wheel for zoom only when the pointer is over #gridScroller.
+  // Never hijack browser zoom elsewhere.
   document.addEventListener('wheel', (e) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -4 : 4;
-      window.state.zoom = Math.max(12, Math.min(64, window.state.zoom + delta));
-      resizeCanvas();
-    }
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const scroller = document.getElementById('gridScroller');
+    if (!scroller) return;
+    const rect = scroller.getBoundingClientRect();
+    const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                   e.clientY >= rect.top && e.clientY <= rect.bottom;
+    if (!inside) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -4 : 4;
+    window.state.zoom = Math.max(12, Math.min(64, window.state.zoom + delta));
+    resizeCanvas();
   }, { passive: false });
 }
 
@@ -555,4 +668,58 @@ if (document.readyState === 'loading') {
 window.app = {
   initApp,
   state: window.state
+};
+
+// Global toggleRec used by the More popover
+window.toggleRec = function () {
+  const btn = document.getElementById('recBtn');
+  if (!btn) return;
+  window.state.rec = !window.state.rec;
+  btn.setAttribute('aria-pressed', window.state.rec);
+  btn.classList.toggle('rec-on', window.state.rec);
+};
+
+// Dock toggle + tab switching
+window.initDock = function () {
+  const dock = document.getElementById('dock');
+  const toggle = document.getElementById('dockToggle');
+  const content = document.querySelector('.dock-content');
+  if (!dock || !toggle) return;
+
+  let collapsed = window.innerHeight < 800;
+
+  function setCollapsed(c) {
+    collapsed = c;
+    toggle.setAttribute('aria-expanded', !collapsed);
+    if (collapsed) {
+      content.style.display = 'none';
+      dock.style.height = '36px';
+      toggle.textContent = '▸ Sound / Keyboard';
+    } else {
+      content.style.display = '';
+      dock.style.height = '';
+      toggle.textContent = '▾ Sound / Keyboard';
+    }
+  }
+
+  setCollapsed(collapsed);
+  toggle.addEventListener('click', () => setCollapsed(!collapsed));
+
+  window.addEventListener('resize', () => {
+    const want = window.innerHeight < 800;
+    if (want !== collapsed) setCollapsed(want);
+  });
+
+  // Tab switching
+  const tabs = document.querySelectorAll('.dock-tab');
+  const panels = document.querySelectorAll('.dock-panel');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const panel = document.getElementById('dock' + tab.dataset.tab);
+      if (panel) panel.classList.add('active');
+    });
+  });
 };

@@ -19,8 +19,20 @@ function drawEnvelope() {
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d');
-  const width = canvas.width;
-  const height = canvas.height;
+  const dpr = window.devicePixelRatio;
+
+  // Size the canvas from its CSS (client) size * devicePixelRatio so it is
+  // crisp and not stretched/distorted by CSS.
+  const cssWidth = canvas.clientWidth || 120;
+  const cssHeight = canvas.clientHeight || 100;
+  canvas.width = cssWidth * dpr;
+  canvas.height = cssHeight * dpr;
+  canvas.style.width = cssWidth + 'px';
+  canvas.style.height = cssHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const width = canvas.width / dpr;
+  const height = canvas.height / dpr;
 
   // Clear canvas
   ctx.clearRect(0, 0, width, height);
@@ -74,7 +86,7 @@ function drawEnvelope() {
 
   // Draw labels A, D, S, R
   ctx.fillStyle = '#5f6368';
-  ctx.font = '10px Roboto';
+  ctx.font = '10px Roboto, Arial, sans-serif';
   ctx.textAlign = 'center';
   // A label at the end of attack
   ctx.fillText('A', (attack * scaleX) / 2, height - 10);
@@ -138,4 +150,11 @@ function initEnvelope() {
 
   // Draw initial envelope
   drawEnvelope();
+
+  // Redraw when the dock / panel resizes (collapse, sidebar, rotation)
+  const canvas = document.getElementById('envelopeCanvas');
+  if (canvas && canvas.parentElement) {
+    const ro = new ResizeObserver(() => drawEnvelope());
+    ro.observe(canvas.parentElement);
+  }
 }

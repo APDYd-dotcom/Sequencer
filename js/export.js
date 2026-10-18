@@ -17,15 +17,11 @@ function initExport() {
   exportInfo = document.getElementById('exportInfo');
 
   const exportBtn = document.getElementById('exportBtn');
-  const exportCloseBtn = document.getElementById('exportCloseBtn');
   const exportActionBtn = document.getElementById('exportActionBtn');
   const exportCancelBtn = document.getElementById('exportCancelBtn');
 
   if (exportBtn) {
     exportBtn.addEventListener('click', openExportDialog);
-  }
-  if (exportCloseBtn) {
-    exportCloseBtn.addEventListener('click', closeExportDialog);
   }
   if (exportCancelBtn) {
     exportCancelBtn.addEventListener('click', closeExportDialog);
@@ -277,6 +273,14 @@ async function doExport() {
   const release = parseFloat(document.getElementById('releaseSlider').value) || 0;
   const timbre = document.getElementById('waveformSelect').value;
 
+  // ADSR envelope for the rendered notes
+  const env = {
+    attack: parseFloat(document.getElementById('attackSlider').value) || 0,
+    decay: parseFloat(document.getElementById('decaySlider').value) || 0,
+    sustain: parseFloat(document.getElementById('sustainSlider').value) || 0,
+    release: release,
+  };
+
   const stepsPerRange = endStep - startStep + 1;
   const totalSeconds = LEAD + stepsPerRange * stepTime * repeat + REVERB_TAIL + release;
   const totalFrames = Math.ceil(totalSeconds * SAMPLE_RATE);
@@ -292,9 +296,9 @@ async function doExport() {
   }
 
   const exportActionBtn = document.getElementById('exportActionBtn');
-  const exportCloseBtn = document.getElementById('exportCloseBtn');
+  const exportCancelBtn = document.getElementById('exportCancelBtn');
   if (exportActionBtn) exportActionBtn.disabled = true;
-  if (exportCloseBtn) exportCloseBtn.disabled = true;
+  if (exportCancelBtn) exportCancelBtn.disabled = true;
 
   // Save globals
   const savedAudioContext = window.getAudioContext ? window.getAudioContext() : window.audioContext;
@@ -417,7 +421,7 @@ async function doExport() {
       exportProgress.hidden = true;
     }
     if (exportActionBtn) exportActionBtn.disabled = false;
-    if (exportCloseBtn) exportCloseBtn.disabled = false;
+    if (exportCancelBtn) exportCancelBtn.disabled = false;
 
     // Restore globals
     if (window.setAudioContext) {

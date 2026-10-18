@@ -4,41 +4,47 @@ A browser-based music sequencer built with vanilla HTML, CSS, and JavaScript. Us
 
 ## Features
 
+- **One-screen layout**: the app fills the viewport (`html, body {height:100%}`, `.app {height:100dvh}`) with no page scrollbars from 360x560 up. Header is slim (~44px); the transport is a compact toolbar; the roll fills the remaining space; Sound/Keyboard live in a collapsible bottom dock (right sidebar at ≥1100px).
+- **Roll that stays in view**: the piano and grid are drawn on a pinned sticky layer inside `#gridScroller`; the scrollable area is provided by a `.gridSpacer`. Scrolling never blanks the piano or grid.
 - **Long timeline**: Virtual scrolling with zoom (12-64px cell width), up to 128 bars (2048 steps). Canvas stays viewport-sized; native scrollbars handle navigation.
-- **Wide pitch range**: 60 rows (5 octaves, C2-B6, MIDI 36-95). Octave labels on C keys.
-- **Zoom & scroll**: Zoom buttons (+/-) and Ctrl/Cmd + mouse wheel. Scroll with mouse wheel (vertical) or Shift+wheel (horizontal). Touch: one-finger drag scrolls, tap toggles cell.
+- **Wide pitch range**: 60 rows (5 octaves, C2-B6, MIDI 36-95). Octave labels on C keys. Piano rows line up with grid rows at every scroll position.
+- **Zoom & scroll**: Zoom buttons (+/-) and Ctrl/Cmd + mouse wheel (only over the grid). Scroll with mouse wheel (vertical) or Shift+wheel (horizontal). Touch: one-finger drag scrolls, tap toggles cell. A Draw/Scroll toggle lets you paint with touch without scrolling.
 - **Follow playhead**: Auto-scrolls to keep the playhead visible while playing (page flip at 80%).
 - **Position readout**: "Bar N - Beat M   t/total" in the transport.
 - **Adjustable tempo** (BPM 60-180).
 - **Timbre selection** with 20+ synthesized instruments generated from code.
-- **ADSR envelope controls** (Attack, Decay, Sustain, Release) with live visualization.
+- **ADSR envelope controls** (Attack, Decay, Sustain, Release) with live visualization on a crisp HiDPI canvas.
 - **Master volume control**.
 - **Visual playhead** indicating current step (tinted column + needle + bar.beat chip).
 - **Loop region**: Drag the loop bar to set start/end; click to toggle on/off; resize edges; drag to move.
 - **Start marker**: Click the ruler to set where playback starts and stops.
 - **Click/drag to toggle steps** on/off (paint bug fixed: no flicker while dragging).
-- **Keyboard input**: Computer keys play notes and toggle cells. Z/X shift keyboard octave.
-- **Song tools**: Bars control (+/-), Duplicate Bar, Clear Bar, Copy Bar, Paste Bar. Overview strip shows whole-song density with viewport and playhead.
-- **Save/Open**: Download .json song files, open saved files. Autosave to localStorage.
+- **Keyboard input**: Computer keys play notes via physical key codes (e.code) so AZERTY/QWERTZ layouts work and Shift/CapsLock do not break notes. PageDown/PageUp shift octave (+ Oct − / Oct + buttons).
+- **Step recording**: a Rec toggle (off by default) lets piano keys / computer keys write into the grid (undoable); preview-only when off.
+- **Song tools**: Bars control (+/- with confirmation when notes would be lost), Duplicate Bar, Clear Bar, Copy Bar, Paste Bar. Overview strip shows whole-song density with viewport and playhead; click/drag to scroll.
+- **Save/Open**: Download .json song files, open saved files. Autosave to localStorage; reload restores the song.
 - **Undo/Redo**: Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y (max 50 snapshots).
 - **Export**: Download the song as MP3 (or WAV fallback) rendered offline with segment-based rendering for long songs. Choose whole song or loop region, repeat count (1/2/4/8), and quality (128/192/320 kbps).
-- **Responsive design** with Material-inspired Google design.
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
 | Space | Play / Stop |
-| C | Clear grid |
-| Z | Shift keyboard octave down |
-| X | Shift keyboard octave up |
+| PageDown | Shift keyboard octave down |
+| PageUp | Shift keyboard octave up |
+| Oct − / Oct + | Shift keyboard octave down / up (buttons in the Keyboard panel) |
 | Ctrl/Cmd + D | Duplicate current bar |
 | Ctrl/Cmd + Z | Undo |
 | Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y | Redo |
 | Home | Go to start of song |
 | End | Go to end of song |
+| Ctrl/Cmd + mouse wheel | Zoom grid (only when pointer is over the grid) |
 | A-S-D-F-G-H-J-K-L-;-Q-W-E-R | Play white keys (C4-B5) |
 | Z-X-C-V-B-N-M-,-. / | Play black keys (sharps) |
+| Rec toggle | Enable step recording (piano keys / keys write into the grid, undoable) |
+
+Notes only fire when no modifier (Ctrl/Cmd/Alt) is held. Shortcuts are ignored while focus is inside an input/select/textarea, and key repeat is ignored for note keys.
 
 ## How to Run
 
