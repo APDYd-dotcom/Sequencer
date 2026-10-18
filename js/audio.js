@@ -290,8 +290,13 @@ function initAudio() {
   convolver.buffer = impulse;
   // Connect convolver to masterGain
   convolver.connect(masterGain);
-  // Expose audioContext globally
+  // Expose audio nodes globally for offline export
   window.audioContext = audioContext;
+  window.masterBus = masterBus;
+  window.masterGain = masterGain;
+  window.compressor = compressor;
+  window.limiter = limiter;
+  window.convolver = convolver;
 }
 
 // Apply ADSR envelope to a gain node
@@ -383,5 +388,6 @@ window.setMasterVolume = setMasterVolume;
 window.resumeAudioContext = resumeAudioContext;
 window.initAudio = initAudio;
 window.getAudioContext = () => audioContext;
+window.setAudioContext = (ctx) => { audioContext = ctx; };
 window.makeAdditiveInstrument = makeAdditiveInstrument;
 EOF

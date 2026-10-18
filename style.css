@@ -333,3 +333,81 @@ input[type="range"]::-moz-range-thumb {
         width: 60px;
     }
 }
+
+/* Export dialog */
+#exportDialog {
+    margin: auto;
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(60, 64, 67, 0.3);
+    width: min(420px, 100vw - 32px);
+    padding: 0;
+    background-color: var(--card-bg);
+}
+#exportDialog::backdrop {
+    background: rgba(60, 64, 67, 0.3);
+}
+.export-dialog-content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.export-dialog-content h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+.export-info {
+    margin: 0;
+    font-size: 14px;
+    color: var(--secondary-text);
+}
+.export-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.export-field label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+.export-field select {
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+#exportProgress {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background-color: var(--border-color);
+    appearance: none;
+    border: none;
+}
+#exportProgress::-webkit-progress-bar {
+    background-color: var(--border-color);
+    border-radius: 3px;
+}
+#exportProgress::-webkit-progress-value {
+    background-color: var(--primary-color);
+    border-radius: 3px;
+}
+.export-status {
+    margin: 0;
+    font-size: 13px;
+    color: var(--secondary-text);
+    min-height: 18px;
+}
+.export-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 4px;
+}

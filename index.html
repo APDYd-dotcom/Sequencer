@@ -28,8 +28,40 @@
                 <input type="range" id="bpmSlider" min="60" max="180" value="100">
                 <button id="clearBtn" class="button outline">Clear</button>
                 <button id="randomBtn" class="button outline">Random</button>
+                <button id="exportBtn" class="button outline">Export</button>
             </div>
         </section>
+
+        <dialog id="exportDialog">
+            <div class="export-dialog-content">
+                <h3>Export song</h3>
+                <p id="exportInfo" class="export-info">Exports steps 1-16 at 100 BPM, about 8.1 s.</p>
+                <div class="export-field">
+                    <label for="exportRepeat">Repeat</label>
+                    <select id="exportRepeat">
+                        <option value="1">1 time</option>
+                        <option value="2" selected>2 times</option>
+                        <option value="4">4 times</option>
+                        <option value="8">8 times</option>
+                    </select>
+                </div>
+                <div class="export-field">
+                    <label for="exportQuality">Quality</label>
+                    <select id="exportQuality">
+                        <option value="128">128 kbps</option>
+                        <option value="192" selected>192 kbps</option>
+                        <option value="320">320 kbps</option>
+                    </select>
+                </div>
+                <progress id="exportProgress" value="0" max="100" hidden></progress>
+                <p id="exportStatus" class="export-status" role="status"></p>
+                <div class="export-actions">
+                    <button id="exportCancelBtn" class="button outline">Close</button>
+                    <button id="exportActionBtn" class="button primary">Export MP3</button>
+                </div>
+            </div>
+        </dialog>
+
         <section class="card grid-card">
             <h2>Sequencer Grid</h2>
             <div class="roll">
@@ -80,6 +112,8 @@
         </section>
     </main>
     <script src="js/timbres.js"></script>
+    <script src="js/vendor/lame.min.js"></script>
+    <script src="js/export.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/envelope.js"></script>
     <script src="js/piano.js"></script>

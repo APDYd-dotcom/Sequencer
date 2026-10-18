@@ -61,6 +61,9 @@ function initApp() {
 
   // Set up UI event listeners
   setupUIListeners();
+
+  // Initialize export
+  initExport();
   
   // Load a demo pattern
   loadDemoPattern();
@@ -212,6 +215,7 @@ function loadTimbrePreset(timbre) {
 
 // Play a short preview note when timbre changes
 function playPreviewNote() {
+  if (window.state.exporting) return;
   resumeAudioContext().then(() => {
     const frequency = 440; // A4
     const duration = 0.5;
@@ -302,6 +306,8 @@ function renderKeyboardMap() {
 // Set up keyboard shortcuts
 function setupKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
+    // Ignore keyboard shortcuts while a dialog is open
+    if (document.querySelector('dialog[open]')) return;
     // Space: play/stop
     if (e.code === 'Space') {
       e.preventDefault();

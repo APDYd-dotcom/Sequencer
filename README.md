@@ -20,7 +20,8 @@ A simple browser-based music sequencer built with vanilla HTML, CSS, and JavaScr
 - Master volume control.
 - Visual playhead indicating current step.
 - Click/drag to toggle steps on/off.
-- Play/Stop, Clear, and Random pattern buttons.
+- Play/Stop, Clear, Random, and **Export** buttons.
+- **Export**: Download the song as an MP3 file (or WAV fallback) rendered offline with the same timbres, ADSR, reverb, and volume as live playback. Choose loop region or all steps, repeat count (1/2/4/8), and quality (128/192/320 kbps).
 - Keyboard shortcuts: Space (play/stop), C (clear), and mapped keys for note input (A-S-D-F-G-H-J-K-L-;-Q-W-E-R).
 - Responsive design.
 - Material-inspired Google design.
@@ -29,6 +30,8 @@ A simple browser-based music sequencer built with vanilla HTML, CSS, and JavaScr
 
 1. Open `index.html` in a web browser (Chrome, Firefox, Safari, Edge).
 2. Click anywhere on the page to enable audio (required by browser autoplay policies).
+3. Click **Export** in the transport toolbar to open the export dialog.
+4. Choose repeat count and quality, then click **Export MP3** to download the file.
 3. Use the Play button to start the sequencer.
 4. Click on the grid to activate/deactivate steps.
 5. Adjust BPM, timbre, volume, and ADSR envelopes to shape the sound.
@@ -42,7 +45,9 @@ A simple browser-based music sequencer built with vanilla HTML, CSS, and JavaScr
 - `js/envelope.js` - ADSR envelope parameters and visualization
 - `js/piano.js` - Piano keyboard drawing and interaction
 - `js/sequencer.js` - Grid state, scheduling, and canvas drawing
-- `js/main.js` - UI wiring, event listeners, and initialization
+- `js/export.js` - Offline audio rendering and MP3/WAV export
+- `js/vendor/lame.min.js` - lamejs MP3 encoder (LGPL-3.0)
+- `js/vendor/LICENSE-lamejs.txt` - lamejs license
 - `README.md` - This file
 
 ## How It Works
@@ -67,3 +72,7 @@ A simple browser-based music sequencer built with vanilla HTML, CSS, and JavaScr
 4. **Effects**: Add simple audio effects like delay or reverb using Web Audio API nodes.
 5. **MIDI Input**: Connect to MIDI controllers for note input or parameter control.
 6. **Song Mode**: Chain multiple patterns together to create a full song arrangement.
+
+## Credits
+
+- [lamejs](https://github.com/wingify/lamejs) - MP3 encoder (LGPL-3.0), used for offline MP3 export in `js/vendor/lame.min.js`.

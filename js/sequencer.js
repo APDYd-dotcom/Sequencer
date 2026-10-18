@@ -22,6 +22,7 @@ const state = {
   isPlaying: false,
   playStep: 0,      // playhead position (step being heard / where playback starts)
   startStep: 0,     // start marker; play starts here, Stop returns here
+  exporting: false, // set while exporting to lock playback
   bpm: 100,
 
   // Loop region
@@ -471,7 +472,7 @@ function handlePointerUp(e) {
 
 // Start the sequencer
 function startSequencer() {
-  if (state.isPlaying) return;
+  if (state.isPlaying || state.exporting) return;
   state.isPlaying = true;
   // Play starts from the start marker
   state.playStep = state.startStep;
