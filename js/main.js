@@ -38,9 +38,8 @@ let keyboardOctaveShift = 0; // Z/X shift octave up/down
 
 // Convert MIDI note to row index (row 0 = highest note)
 function midiToRow(midiNote) {
-  // Row 0 = MIDI 83 (B5), row 23 = MIDI 60 (C4)
-  // General: row = (maxMidi - midiNote) where maxMidi = 60 + ROWS - 1
-  const maxMidi = 60 + window.state.ROWS - 1;
+  // Row 0 = MIDI 95 (B6), row 59 = MIDI 36 (C2)
+  const maxMidi = 36 + window.state.ROWS - 1;
   return maxMidi - midiNote;
 }
 

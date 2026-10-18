@@ -4,7 +4,7 @@ const state = {
   STEPS_PER_BAR: 16,   // 16th notes per bar (4/4)
   bars: 8,             // number of bars (min 1, max 128)
   COLS: 0,             // computed = bars * STEPS_PER_BAR, set in init
-  ROWS: 24,            // C4 to B5 (chromatic)
+  ROWS: 60,            // C2 to B6 (five octaves, MIDI 36-95)
   ROW_HEIGHT: 20,      // pixels per row (logical, not device pixels)
 
   // Zoom / scroll state
@@ -69,18 +69,21 @@ const state = {
   paintValue: null,
 };
 
-// Initialize note arrays from MIDI 60 (C4) to 83 (B5)
-// We'll store from highest to lowest so row 0 is B5, row 23 is C4.
+// Initialize note arrays from MIDI 36 (C2) to 95 (B6)
+// We'll store from highest to lowest so row 0 is B6, last row = C2.
 function initNotes() {
   state.noteNames = [];
   state.frequencies = [];
   state.isBlackKey = [];
 
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const minMidi = 36; // C2
+  const maxMidi = 95; // B6
 
-  for (let midi = 83; midi >= 60; midi--) {
-    const noteIndex = (midi - 60) % 12;
-    const name = noteNames[noteIndex] + (4 + Math.floor((midi - 60) / 12));
+  for (let midi = maxMidi; midi >= minMidi; midi--) {
+    const noteIndex = (midi - minMidi) % 12;
+    const octave = 2 + Math.floor((midi - minMidi) / 12);
+    const name = noteNames[noteIndex] + octave;
     state.noteNames.push(name);
 
     // Frequency: 440 * 2^((midi-69)/12)
@@ -112,6 +115,16 @@ function initSequencer() {
   state.ctx = state.canvas.getContext('2d');
   resizeCanvas();
   drawGrid();
+
+  // On load, scroll so that C4-B5 (the old range) is visible
+  // row 0 = MIDI 95 (B6); C4 = MIDI 60 -> row 35; B5 = MIDI 83 -> row 12
+  const c4Row = 35;
+  const c4Y = c4Row * state.ROW_HEIGHT;
+  const scroller = document.getElementById('gridScroller');
+  if (scroller) {
+    scroller.scrollTop = Math.max(0, c4Y - scroller.clientHeight / 2);
+    state.scrollY = scroller.scrollTop;
+  }
 
   // Set up pointer events
   state.canvas.addEventListener('pointerdown', handlePointerDown);

@@ -128,8 +128,16 @@ function drawPiano() {
     if (!window.state.isBlackKey[row]) {
       const y = row * keyHeight - scrollY;
       const noteName = window.state.noteNames[row];
-      // Make C notes bold and dark
-      if (noteName.startsWith('C')) {
+      // Octave label on C keys (stronger line)
+      const isC = noteName.startsWith('C');
+      if (isC) {
+        // Stronger line at each C
+        ctx.strokeStyle = '#999999';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
         ctx.fillStyle = '#202124';
         ctx.font = 'bold 12px Roboto';
       } else {
